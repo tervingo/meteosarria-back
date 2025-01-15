@@ -1,0 +1,8 @@
+<logger>
+  <THB date="20250115164931" id="thb0" temp="23.4" hum="35" dew="7.1" press="1007.1" seapress="1020.0" fc="2"/>
+  <TH date="20250115164853" id="th0" temp="10.6" hum="45" dew="-0.8"/>
+  <UV date="20250115164949" id="uv0" index="0.0"/>
+  <SOL date="20250115164925" id="sol0" rad="0"/>
+  <WIND date="20250115164951" id="wind0" dir="344" gust="0.0" wind="0.4" chill="10.6"/>
+  <RAIN date="20250115164919" id="rain0" rate="0.0" total="0.0" delta="0.0"/>
+</logger>
