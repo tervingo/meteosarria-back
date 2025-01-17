@@ -16,7 +16,8 @@ def get_meteohub_parameter(parameter_name):
         The value of the specified parameter, or None if the parameter is not
         found or an error occurs.
     """
-    url = "http://192.168.1.115/meteolog.cgi?type=xml&mode=data"
+#    url = "http://192.168.1.115/meteolog.cgi?type=xml&mode=data"
+    url = "http://tervingo.hopto.me:81/meteolog.cgi?type=xml&mode=data"
 
     # Mapping of parameter names to Meteohub sensor IDs and attributes
     parameter_map = {
@@ -27,6 +28,7 @@ def get_meteohub_parameter(parameter_name):
         "wind_speed": {"id": "WIND", "attribute": "wind"},
         "gust_speed": {"id": "WIND", "attribute": "gust"},
         "press": {"id": "THB", "attribute": "press"},
+        "sea_press": {"id": "THB", "attribute": "seapress"},
         "cur_rain": {"id": "RAIN", "attribute": "rate"},
         "total_rain": {"id": "RAIN", "attribute": "total"},
         "rad": {"id": "SOL", "attribute": "rad"},
@@ -60,7 +62,7 @@ def get_meteohub_parameter(parameter_name):
                 if attribute_name in element.attrib:
                     value = element.attrib[attribute_name]
                     # Convert to appropriate data type based on attribute
-                    if attribute_name in ("temp", "hum", "wind", "gust", "press", "rate", "total", "rad", "index"):
+                    if attribute_name in ("temp", "hum", "wind", "gust", "press", "sea_press", "rate", "total", "rad", "index"):
                         return float(value)
                     else:
                         return value  # Return as string if not a numeric attribute
