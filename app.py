@@ -3,6 +3,7 @@ from livedata import get_meteohub_parameter
 from flask_cors import CORS
 from pymongo import MongoClient
 import logging
+import os
 
 app = Flask(__name__)
 CORS(app)
