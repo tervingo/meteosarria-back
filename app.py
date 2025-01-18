@@ -29,6 +29,7 @@ log_lock = threading.Lock()
 def log_weather_data():
     with log_lock:
         try:
+            logging.info("Fetching weather data...")
             live_data = {
                 "external_temperature": get_meteohub_parameter("ext_temp"),
                 "internal_temperature": get_meteohub_parameter("int_temp"),
@@ -77,6 +78,7 @@ def live_weather():
         return jsonify({"error": "Internal server error"}), 500
 
 def run_scheduler():
+    logging.info("Starting scheduler...")
     schedule.every(5).minutes.do(log_weather_data)
     while True:
         schedule.run_pending()
