@@ -1,4 +1,5 @@
 import logging
+import os
 from pymongo import MongoClient
 from datetime import datetime
 from livedata import get_meteohub_parameter
@@ -8,7 +9,11 @@ logging.basicConfig(level=logging.INFO)
 
 # MongoDB connection
 try:
-    client = MongoClient("mongodb+srv://tervingo:mig.langar.inn@gagnagunnur.okrh1.mongodb.net/meteosarria")
+    mongo_uri = os.getenv("MONGODB_URI")
+    if not mongo_uri:
+        raise ValueError("MONGODB_URI environment variable not set")
+    
+    client = MongoClient(mongo_uri)
     db = client.meteosarria
     collection = db.data
     logging.info("Connected to MongoDB")
