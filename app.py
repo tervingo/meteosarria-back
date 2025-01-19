@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from livedata import get_meteohub_parameter
 from flask_cors import CORS
 from pymongo import MongoClient
+from datetime import datetime, timedelta
 import logging
 import os
 
@@ -47,6 +48,31 @@ def live_weather():
         return jsonify(live_data)
     except Exception as e:
         logging.error(f"Error in live_weather endpoint: {e}")
+        return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/api/temperature-data')
+def temperature_data():
+    try:
+        logging.info("temperature_data endpoint called")
+        end_time = datetime.now()
+        start_time = end_time - timedelta(hours=24)
+
+        # Convert datetime objects to the format "DD-MM-YYYY hh:mm"
+        end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
+        start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
+
+        logging.info(f"Querying data from {start_time_str} to {end_time_str}")
+
+        data = list(collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}}).sort("timestamp", -1).limit(24 * 12))
+
+        logging.info(f"Retrieved data: {data}")
+
+        for entry in data:
+            entry["_id"] = str(entry["_id"])  # Convert ObjectId to string for JSON serialization
+
+        return jsonify(data)
+    except Exception as e:
+        logging.error(f"Error fetching temperature data: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
