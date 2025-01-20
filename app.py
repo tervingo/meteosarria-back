@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 import logging
 import os
+import pytz
 
 app = Flask(__name__)
 CORS(app)
@@ -54,7 +55,7 @@ def live_weather():
 def temperature_data():
     try:
         logging.info("temperature_data endpoint called")
-        end_time = datetime.now()
+        end_time = datetime.now(pytz.timezone('Europe/Madrid'))
         start_time = end_time - timedelta(hours=24)
 
         # Convert datetime objects to the format "DD-MM-YYYY hh:mm"
