@@ -51,10 +51,10 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-@app.route('/api/temperature-data')
+@app.route('/api/meteo-data')
 def temperature_data():
     try:
-        logging.info("temperature_data endpoint called")
+        logging.info("meteo-data endpoint called")
         end_time = datetime.now(pytz.timezone('Europe/Madrid'))
         start_time = end_time - timedelta(hours=24)
 
@@ -73,7 +73,7 @@ def temperature_data():
 
         return jsonify(data)
     except Exception as e:
-        logging.error(f"Error fetching temperature data: {e}")
+        logging.error(f"Error fetching meteo data: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 if __name__ == '__main__':
