@@ -3,6 +3,7 @@ import os
 from pymongo import MongoClient
 from datetime import datetime
 from livedata import get_meteohub_parameter
+import pytz
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +35,7 @@ def log_weather_data():
             "current_rain_rate": get_meteohub_parameter("cur_rain"),
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
-            "timestamp": datetime.now().strftime("%d-%m-%Y %H:%M")
+            "timestamp": datetime.now(pytz.timezone('Europe/Madrid')).strftime("%d-%m-%Y %H:%M")
         }
 
         if any(value is None for value in live_data.values()):
