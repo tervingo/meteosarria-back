@@ -5,85 +5,71 @@ from pymongo import MongoClient
 from datetime import datetime
 import dropbox
 from dropbox.files import WriteMode
+from dropbox.exceptions import AuthError
 import pytz
+import requests
+
+# ... (rest of your imports)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 # MongoDB connection
-try:
-    mongo_uri = os.getenv("MONGODB_URI")
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI environment variable not set")
-
-    client = MongoClient(mongo_uri)
-    db = client.meteosarria
-    collection = db.data
-    logging.info("Connected to MongoDB")
-except Exception as e:
-    logging.error(f"Error connecting to MongoDB: {e}")
-    exit(1)
+# ... (your MongoDB connection code)
 
 # Dropbox connection
 try:
-    dropbox_token = os.getenv("DROPBOX_TOKEN")
-    if not dropbox_token:
-        raise ValueError("DROPBOX_TOKEN environment variable not set")
+    dropbox_refresh_token = os.getenv("DROPBOX_REFRESH_TOKEN")
+    dropbox_app_key = os.getenv("DROPBOX_CLIENT_ID")
+    dropbox_app_secret = os.getenv("DROPBOX_CLIENT_SECRET")
 
-    dbx = dropbox.Dropbox(dropbox_token)
+    if not dropbox_refresh_token or not dropbox_app_key or not dropbox_app_secret:
+        raise ValueError("DROPBOX_REFRESH_TOKEN, DROPBOX_CLIENT_ID, and DROPBOX_CLIENT_SECRET environment variables must be set")
+
+    # Initialize Dropbox with a dummy access token, as it will be refreshed immediately
+    dbx = dropbox.Dropbox(oauth2_access_token='dummy', oauth2_refresh_token=dropbox_refresh_token, app_key=dropbox_app_key, app_secret=dropbox_app_secret)
     logging.info("Connected to Dropbox")
+
 except Exception as e:
     logging.error(f"Error connecting to Dropbox: {e}")
     exit(1)
 
+def refresh_dropbox_token():
+    """Refreshes the Dropbox access token using the refresh token."""
+    token_url = "https://api.dropboxapi.com/oauth2/token"
+    data = {
+        "grant_type": "refresh_token",
+        "refresh_token": dropbox_refresh_token,
+        "client_id": dropbox_app_key,
+        "client_secret": dropbox_app_secret,
+    }
+    response = requests.post(token_url, data=data)
+    response.raise_for_status()
+    token_data = response.json()
+    return token_data["access_token"]
 
 def export_mongodb_to_csv_and_upload_to_dropbox():
     try:
-        # Fetch data from MongoDB
-        logging.info("Fetching data from MongoDB...")
-        cursor = collection.find({})
-        data = list(cursor)
-
-        if not data:
-            logging.warning("No data found in MongoDB collection.")
-            return
-
-        # Prepare CSV file
-        logging.info("Preparing CSV file...")
-        madrid_tz = pytz.timezone('Europe/Madrid')
-        current_time_madrid = datetime.now(madrid_tz)
-        filename = f"meteosarria_data_{current_time_madrid.strftime('%Y%m%d')}.csv"
-        filepath = f"/tmp/{filename}"  # Use /tmp for temporary file in Render
-
-        with open(filepath, 'w', newline='') as csvfile:
-            fieldnames = [
-                "external_temperature",
-                "internal_temperature",
-                "humidity",
-                "pressure",
-                "wind_speed",
-                "wind_direction",
-                "current_rain_rate",
-                "total_rain",
-                "solar_radiation",
-                "timestamp"
-            ]
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            writer.writeheader()
-            for doc in data:
-                # Remove the _id field as it's not needed in the CSV and can cause issues
-                doc.pop('_id', None)
-                writer.writerow(doc)
-            
-        logging.info(f"Data written to local file: {filepath}")
+        # ... (your MongoDB data fetching and CSV creation code)
 
         # Upload to Dropbox
         logging.info(f"Uploading CSV to Dropbox...")
-        dropbox_path = f"/meteosarria/{filename}"  # Specify your desired Dropbox folder path
+        dropbox_path = f"Meteosarria//{filename}"
 
         with open(filepath, "rb") as f:
-            dbx.files_upload(f.read(), dropbox_path, mode=WriteMode('overwrite'))
-
+            try:
+                dbx.files_upload(f.read(), dropbox_path, mode=WriteMode('overwrite'))
+            except AuthError as e:
+                logging.info(f"AuthError: {e}. Refreshing token and retrying.")
+                new_access_token = refresh_dropbox_token()
+                
+                # Update Dropbox client with the new access token
+                global dbx
+                dbx = dropbox.Dropbox(oauth2_access_token=new_access_token, oauth2_refresh_token=dropbox_refresh_token, app_key=dropbox_app_key, app_secret=dropbox_app_secret)
+                
+                # Retry the upload
+                dbx.files_upload(f.read(), dropbox_path, mode=WriteMode('overwrite'))
+                
         logging.info(f"CSV file uploaded to Dropbox: {dropbox_path}")
 
     except Exception as e:
@@ -94,7 +80,6 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
         if 'filepath' in locals() and os.path.exists(filepath):
             os.remove(filepath)
             logging.info(f"Temporary file {filepath} removed.")
-
 
 if __name__ == '__main__':
     export_mongodb_to_csv_and_upload_to_dropbox()
