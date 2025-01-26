@@ -72,6 +72,8 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
     Fetches data from MongoDB, creates a CSV file, and uploads it to Dropbox.
     Handles Dropbox access token refresh.
     """
+    global dbx  # Declare dbx as global at the beginning of the function 
+
     try:
         # Fetch data from MongoDB
         logging.info("Fetching data from MongoDB...")
@@ -122,7 +124,6 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
                 new_access_token = refresh_dropbox_token()
 
                 # Update Dropbox client with the new access token
-                global dbx
                 dbx = dropbox.Dropbox(
                     oauth2_access_token=new_access_token,
                     oauth2_refresh_token=dropbox_refresh_token,
