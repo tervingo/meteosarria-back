@@ -8,3 +8,4 @@ schedule==1.1.0
 apscheduler==3.8.1
 pytz==2024.2
 dropbox
+requests-oauthlib
