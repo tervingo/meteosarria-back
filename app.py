@@ -55,36 +55,42 @@ def live_weather():
 def temperature_data():
     try:
         logging.info("meteo-data endpoint called")
-        time_range = request.args.get('timeRange', '24h')  # Get timeRange from query parameters, default to 24h
+        time_range = request.args.get('timeRange', '24h')
         end_time = datetime.now(pytz.timezone('Europe/Madrid'))
 
         if time_range == '24h':
             start_time = end_time - timedelta(hours=24)
-            limit = 24 * 12  # 12 five-minute intervals per hour
+            interval = 1  # Every 5 minutes (no skipping)
         elif time_range == '48h':
             start_time = end_time - timedelta(hours=48)
-            limit = 48 * 6  # 6 ten-minute intervals per hour
+            interval = 2  # Every 10 minutes (skip every other data point)
         elif time_range == '7d':
             start_time = end_time - timedelta(days=7)
-            limit = 7 * 24 * 2  # 2 half-hour intervals per hour * 24 hours * 7 days
+            interval = 6  # Every 30 minutes (skip 5 data points, take the 6th)
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
-        # Convert datetime objects to the format "DD-MM-YYYY hh:mm"
         end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
         start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
 
         logging.info(f"Querying data from {start_time_str} to {end_time_str} for time range: {time_range}")
 
-        # Fetch data with limit based on time range and sort in ascending order
-        data = list(collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}}).sort("timestamp", 1).limit(limit))
+        # Fetch data with sampling based on time range
+        data = list(
+            collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}})
+            .sort("timestamp", 1)
+        )
 
-        logging.info(f"Retrieved data: {data}")
+        # Apply sampling
+        sampled_data = data[::interval]
 
-        for entry in data:
-            entry["_id"] = str(entry["_id"])  # Convert ObjectId to string for JSON serialization
+        logging.info(f"Retrieved and sampled data: {sampled_data}")
 
-        return jsonify(data)
+        for entry in sampled_data:
+            entry["_id"] = str(entry["_id"])
+
+        return jsonify(sampled_data)
+
     except Exception as e:
         logging.error(f"Error fetching meteo data: {e}")
         return jsonify({"error": "Internal server error"}), 500
