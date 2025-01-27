@@ -66,7 +66,7 @@ def temperature_data():
             limit = 48 * 6  # 6 ten-minute intervals per hour
         elif time_range == '7d':
             start_time = end_time - timedelta(days=7)
-            limit = 7 * 48  # 48 half-hour intervals per day
+            limit = 7 * 24 * 2  # 2 half-hour intervals per hour * 24 hours * 7 days
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
@@ -78,10 +78,6 @@ def temperature_data():
 
         # Fetch data with limit based on time range and sort in ascending order
         data = list(collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}}).sort("timestamp", 1).limit(limit))
-
-        # Reverse the order of data if it's 24h or 48h (to maintain descending order)
-        if time_range in ['24h', '48h']:
-          data.reverse()
 
         logging.info(f"Retrieved data: {data}")
 
