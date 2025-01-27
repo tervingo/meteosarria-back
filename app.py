@@ -55,16 +55,33 @@ def live_weather():
 def temperature_data():
     try:
         logging.info("meteo-data endpoint called")
+        time_range = request.args.get('timeRange', '24h')  # Get timeRange from query parameters, default to 24h
         end_time = datetime.now(pytz.timezone('Europe/Madrid'))
-        start_time = end_time - timedelta(hours=24)
+
+        if time_range == '24h':
+            start_time = end_time - timedelta(hours=24)
+            limit = 24 * 12  # 12 five-minute intervals per hour
+        elif time_range == '48h':
+            start_time = end_time - timedelta(hours=48)
+            limit = 48 * 6  # 6 ten-minute intervals per hour
+        elif time_range == '7d':
+            start_time = end_time - timedelta(days=7)
+            limit = 7 * 48  # 48 half-hour intervals per day
+        else:
+            return jsonify({"error": "Invalid time range"}), 400
 
         # Convert datetime objects to the format "DD-MM-YYYY hh:mm"
         end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
         start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
 
-        logging.info(f"Querying data from {start_time_str} to {end_time_str}")
+        logging.info(f"Querying data from {start_time_str} to {end_time_str} for time range: {time_range}")
 
-        data = list(collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}}).sort("timestamp", -1).limit(24 * 12))
+        # Fetch data with limit based on time range and sort in ascending order
+        data = list(collection.find({"timestamp": {"$gte": start_time_str, "$lte": end_time_str}}).sort("timestamp", 1).limit(limit))
+
+        # Reverse the order of data if it's 24h or 48h (to maintain descending order)
+        if time_range in ['24h', '48h']:
+          data.reverse()
 
         logging.info(f"Retrieved data: {data}")
 
@@ -75,6 +92,6 @@ def temperature_data():
     except Exception as e:
         logging.error(f"Error fetching meteo data: {e}")
         return jsonify({"error": "Internal server error"}), 500
-
+    
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
