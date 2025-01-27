@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from livedata import get_meteohub_parameter
 from flask_cors import CORS
 from pymongo import MongoClient
