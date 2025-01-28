@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request,  Response
 from livedata import get_meteohub_parameter
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -94,6 +94,13 @@ def temperature_data():
     except Exception as e:
         logging.error(f"Error fetching meteo data: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/webcam-image')
+def webcam_image():
+    image_url = "https://ibericam.com/espana/burgos/webcam-burgos-catedral-de-burgos/"
+    response = requests.get(image_url)
+    return Response(response.content, content_type=response.headers['Content-Type'])
+
     
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
