@@ -97,8 +97,10 @@ def temperature_data():
 
 @app.route('/webcam-image')
 def webcam_image():
+    logging.info("webcam-image endpoint called")
     image_url = "https://ibericam.com/espana/burgos/webcam-burgos-catedral-de-burgos/"
     response = requests.get(image_url)
+    logging.info(f"Response status code: {response.status_code}")
     return Response(response.content, content_type=response.headers['Content-Type'])
 
     
