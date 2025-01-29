@@ -77,12 +77,9 @@ async def renuncio_data():
         # Get the HTML content
         html_content = driver.page_source
 
-        # Extract text content (you can adapt this part as needed)
-        text_content = driver.find_element("tag name", "body").text 
 
-        logging.info(f"HTML Content: {html_content[:200]}...")
-        logging.info(f"Text Content: {text_content[:200]}...")
-
+        logging.info(f"HTML Content: {html_content}...")
+ 
         # Close the browser
         driver.quit()
         
@@ -90,7 +87,7 @@ async def renuncio_data():
  
         pattern = r"(?si)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
         # Find all matches of the pattern in the HTML content
-        matches = re.findall(pattern, text_content)
+        matches = re.findall(pattern, html_content)
         logging.info(f"Matches: {matches}")
 
         # Extract the data from the matches
