@@ -8,8 +8,8 @@ import os
 import pytz
 import requests
 import re
-import asyncio
-from pyppeteer import launch
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 app = Flask(__name__)
 CORS(app)
@@ -61,32 +61,30 @@ async def renuncio_data():
         logging.info("renuncio endpoint called")
         renuncio_url = "https://renuncio.com/meteorologia/actual"
 
-        browser = None  # Initialize browser outside the try block
-        try:
-            # Launch a headless browser
-            browser = await launch(headless=True, args=['--no-sandbox'])
-            page = await browser.newPage()
+        # Configure Chrome options for headless mode
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox") # Often necessary in restricted environments
+        chrome_options.add_argument("--disable-dev-shm-usage") # Might be needed in Docker
 
-            # Navigate to the URL
-            await page.goto(renuncio_url, {'waitUntil': 'networkidle2'})
+        # Create a WebDriver instance (using Chrome in this example)
+        # You might need to specify the path to the chromedriver executable
+        driver = webdriver.Chrome(options=chrome_options) 
 
-            # Get the HTML content of the page
-            html_content = await page.content()
+        # Navigate to the URL
+        driver.get(renuncio_url)
 
-            # Extract text content
-            text_content = await page.evaluate('document.body.innerText') # Get all text
+        # Get the HTML content
+        html_content = driver.page_source
 
-            logging.info(f"HTML Content: {html_content[:200]}...")  # Log a snippet
-            logging.info(f"Text Content: {text_content[:200]}...")
+        # Extract text content (you can adapt this part as needed)
+        text_content = driver.find_element("tag name", "body").text 
 
-            # Close the browser
-            await browser.close()
+        logging.info(f"HTML Content: {html_content[:200]}...")
+        logging.info(f"Text Content: {text_content[:200]}...")
 
-        except Exception as e:
-            logging.error(f"Error during Puppeteer operation: {e}")
-            if browser:
-                await browser.close()
-            return jsonify({'error': 'Failed to fetch or process data'}), 500
+        # Close the browser
+        driver.quit()
         
         # Define the regular expression pattern to extract the data
  
