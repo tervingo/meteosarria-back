@@ -55,6 +55,8 @@ def live_weather():
 
 @app.route('/api/renuncio')
 def renuncio_data():
+
+    logging.info("renuncio endpoint called")
     # Define the URL to scrape
     url = "https://renuncio.com/meteorologia/actual"
 
@@ -88,8 +90,10 @@ def renuncio_data():
         "solar_radiation": solar_radiation
     }
 
+    jsonData = jsonify(data)
+    logging.info(f"Data extracted from renuncio.com: {jsonData}")   
     # Return the data as a JSON response
-    return jsonify(data)
+    return jsonData
 
 
 @app.route('/api/meteo-data')
