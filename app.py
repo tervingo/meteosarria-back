@@ -8,6 +8,8 @@ import os
 import pytz
 import requests
 import re
+import asyncio
+from pyppeteer import launch
 
 app = Flask(__name__)
 CORS(app)
@@ -54,24 +56,43 @@ def live_weather():
         return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/renuncio')
-def renuncio_data():
+async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
-        # Define the URL to scrape
         renuncio_url = "https://renuncio.com/meteorologia/actual"
-        proxy_url = f"https://api.allorigins.win/raw?url={renuncio_url}"  # Using the public proxy
 
-        # Use requests to get the HTML content of the URL
-        response = requests.get(proxy_url)
-        html_content = response.text
-        logging.info(f"HtML content: {html_content}")
+        browser = None  # Initialize browser outside the try block
+        try:
+            # Launch a headless browser
+            browser = await launch(headless=True, args=['--no-sandbox'])
+            page = await browser.newPage()
 
+            # Navigate to the URL
+            await page.goto(renuncio_url, {'waitUntil': 'networkidle2'})
+
+            # Get the HTML content of the page
+            html_content = await page.content()
+
+            # Extract text content
+            text_content = await page.evaluate('document.body.innerText') # Get all text
+
+            logging.info(f"HTML Content: {html_content[:200]}...")  # Log a snippet
+            logging.info(f"Text Content: {text_content[:200]}...")
+
+            # Close the browser
+            await browser.close()
+
+        except Exception as e:
+            logging.error(f"Error during Puppeteer operation: {e}")
+            if browser:
+                await browser.close()
+            return jsonify({'error': 'Failed to fetch or process data'}), 500
+        
         # Define the regular expression pattern to extract the data
-    #    pattern = r"(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class='temperatura_valor'>(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?) \sW\/(.*)"
-
+ 
         pattern = r"(?si)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
         # Find all matches of the pattern in the HTML content
-        matches = re.findall(pattern, html_content)
+        matches = re.findall(pattern, text_content)
         logging.info(f"Matches: {matches}")
 
         # Extract the data from the matches
