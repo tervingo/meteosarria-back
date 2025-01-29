@@ -70,14 +70,15 @@ def renuncio_data():
         pattern = r"(?si)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
         # Find all matches of the pattern in the HTML content
         matches = re.findall(pattern, html_content)
+        logging.info(f"Matches: {matches}")
 
         # Extract the data from the matches
-        date = matches[0][2]
-        logging.info(f"Date: {date}")
-        time = matches[0][4]
-        logging.info(f"Time: {time}")
-        temperature = matches[0][7]
-        logging.info(f"Temperature: {temperature}")
+#        date = matches[0][2]
+#        logging.info(f"Date: {date}")
+#        time = matches[0][4]
+#        logging.info(f"Time: {time}")
+#        temperature = matches[0][7]
+#        logging.info(f"Temperature: {temperature}")
 
 #        wind_speed = matches[0][10]
 #        logging.info(f"Wind speed: {wind_speed}")
@@ -87,6 +88,16 @@ def renuncio_data():
 #        logging.info(f"Humidity: {humidity}")
 #        solar_radiation = matches[0][15]
 #        logging.info(f"Solar radiation: {solar_radiation}")
+
+
+        date: "29/01/25"
+        time: "1200"
+        temperature: "12"
+        wind_speed: "4"
+        wind_direction: "NNW"
+        humidity: "98"
+        solar_radiation: "0"
+
 
         # Format the data
         data = {
