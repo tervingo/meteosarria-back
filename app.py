@@ -78,16 +78,16 @@ def renuncio_data():
         logging.info(f"Time: {time}")
         temperature = matches[0][7]
         logging.info(f"Temperature: {temperature}")
-""" 
-        wind_speed = matches[0][10]
-        logging.info(f"Wind speed: {wind_speed}")
-        wind_direction = matches[0][11]
-        logging.info(f"Wind direction: {wind_direction}")
-        humidity = matches[0][13]
-        logging.info(f"Humidity: {humidity}")
-        solar_radiation = matches[0][15]
-        logging.info(f"Solar radiation: {solar_radiation}")
- """
+
+#        wind_speed = matches[0][10]
+#        logging.info(f"Wind speed: {wind_speed}")
+#        wind_direction = matches[0][11]
+#        logging.info(f"Wind direction: {wind_direction}")
+#        humidity = matches[0][13]
+#        logging.info(f"Humidity: {humidity}")
+#        solar_radiation = matches[0][15]
+#        logging.info(f"Solar radiation: {solar_radiation}")
+
         # Format the data
         data = {
             "date": date,
