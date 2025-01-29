@@ -55,46 +55,49 @@ def live_weather():
 
 @app.route('/api/renuncio')
 def renuncio_data():
+    try:
+        logging.info("renuncio endpoint called")
+        # Define the URL to scrape
+        url = "https://renuncio.com/meteorologia/actual"
 
-    logging.info("renuncio endpoint called")
-    # Define the URL to scrape
-    url = "https://renuncio.com/meteorologia/actual"
+        # Use requests to get the HTML content of the URL
+        response = requests.get(url)
+        html_content = response.text
 
-    # Use requests to get the HTML content of the URL
-    response = requests.get(url)
-    html_content = response.text
+        # Define the regular expression pattern to extract the data
+    #    pattern = r"(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class='temperatura_valor'>(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?) \sW\/(.*)"
 
-    # Define the regular expression pattern to extract the data
-#    pattern = r"(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class='temperatura_valor'>(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?) \sW\/(.*)"
+        pattern = r"/(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
+        # Find all matches of the pattern in the HTML content
+        matches = re.findall(pattern, html_content)
 
-    pattern = r"/(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
-    # Find all matches of the pattern in the HTML content
-    matches = re.findall(pattern, html_content)
+        # Extract the data from the matches
+        date = matches[0][2]
+        time = matches[0][4]
+        temperature = matches[0][6]
+        wind_speed = matches[0][10]
+        wind_direction = matches[0][11]
+        humidity = matches[0][13]
+        solar_radiation = matches[0][15]
 
-    # Extract the data from the matches
-    date = matches[0][2]
-    time = matches[0][4]
-    temperature = matches[0][6]
-    wind_speed = matches[0][10]
-    wind_direction = matches[0][11]
-    humidity = matches[0][13]
-    solar_radiation = matches[0][15]
+        # Format the data
+        data = {
+            "date": date,
+            "time": time,
+            "temperature": temperature,
+            "wind_speed": wind_speed,
+            "wind_direction": wind_direction,
+            "humidity": humidity,
+            "solar_radiation": solar_radiation
+        }
 
-    # Format the data
-    data = {
-        "date": date,
-        "time": time,
-        "temperature": temperature,
-        "wind_speed": wind_speed,
-        "wind_direction": wind_direction,
-        "humidity": humidity,
-        "solar_radiation": solar_radiation
-    }
-
-    jsonData = jsonify(data)
-    logging.info(f"Data extracted from renuncio.com: {jsonData}")   
-    # Return the data as a JSON response
-    return jsonData
+        jsonData = jsonify(data)
+        logging.info(f"Data extracted from renuncio.com: {jsonData}")   
+        # Return the data as a JSON response
+        return jsonData
+    except Exception as e:
+        logging.error(f"Error fetching data from renuncio.com: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/api/meteo-data')
