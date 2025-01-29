@@ -58,13 +58,14 @@ def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
         # Define the URL to scrape
-        url = "https://renuncio.com/meteorologia/actual"
+        renuncio_url = "https://renuncio.com/meteorologia/actual"
+        proxy_url = f"https://api.allorigins.win/raw?url={renuncio_url}"  # Using the public proxy
 
         # Use requests to get the HTML content of the URL
-        response = requests.get(url)
+        response = requests.get(proxy_url)
         html_content = response.text
         logging.info(f"HtML content: {html_content}")
-        
+
         # Define the regular expression pattern to extract the data
     #    pattern = r"(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class='temperatura_valor'>(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?) \sW\/(.*)"
 
