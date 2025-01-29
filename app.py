@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request,  Response
+from flask import Flask, jsonify, request, Response
 from livedata import get_meteohub_parameter
 from flask_cors import CORS
 from pymongo import MongoClient
@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import logging
 import os
 import pytz
+import requests
 
 app = Flask(__name__)
 CORS(app)
@@ -60,13 +61,13 @@ def temperature_data():
 
         if time_range == '24h':
             start_time = end_time - timedelta(hours=24)
-            interval = 1  # Every 5 minutes (no skipping)
+            interval = 1  # Every 5 minutes (no skipping)
         elif time_range == '48h':
             start_time = end_time - timedelta(hours=48)
-            interval = 2  # Every 10 minutes (skip every other data point)
+            interval = 2  # Every 10 minutes (skip every other data point)
         elif time_range == '7d':
             start_time = end_time - timedelta(days=7)
-            interval = 6  # Every 30 minutes (skip 5 data points, take the 6th)
+            interval = 6  # Every 30 minutes (skip 5 data points, take the 6th)
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
@@ -99,10 +100,10 @@ def temperature_data():
 def webcam_image():
     logging.info("webcam-image endpoint called")
     image_url = "https://ibericam.com/espana/burgos/webcam-burgos-catedral-de-burgos/"
-    response = requests.get(image_url)
+    proxy_url = f"https://api.allorigins.win/raw?url={image_url}"  # Using the public proxy
+    response = requests.get(proxy_url)
     logging.info(f"Response status code: {response.status_code}")
     return Response(response.content, content_type=response.headers['Content-Type'])
 
-    
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
