@@ -63,7 +63,8 @@ def renuncio_data():
         # Use requests to get the HTML content of the URL
         response = requests.get(url)
         html_content = response.text
-
+        logging.info(f"HtML content: {html_content}")
+        
         # Define the regular expression pattern to extract the data
     #    pattern = r"(?siU)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class='temperatura_valor'>(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?) \sW\/(.*)"
 
@@ -152,7 +153,7 @@ def temperature_data():
         # Apply sampling
         sampled_data = data[::interval]
 
-        logging.info(f"Retrieved and sampled data: {sampled_data}")
+#        logging.info(f"Retrieved and sampled data: {sampled_data}")
 
         for entry in sampled_data:
             entry["_id"] = str(entry["_id"])
