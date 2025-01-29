@@ -61,13 +61,13 @@ def temperature_data():
 
         if time_range == '24h':
             start_time = end_time - timedelta(hours=24)
-            interval = 1  # Every 5 minutes (no skipping)
+            interval = 1 # Every 5 minutes (no skipping)
         elif time_range == '48h':
             start_time = end_time - timedelta(hours=48)
-            interval = 2  # Every 10 minutes (skip every other data point)
+            interval = 2 # Every 10 minutes (skip every other data point)
         elif time_range == '7d':
             start_time = end_time - timedelta(days=7)
-            interval = 6  # Every 30 minutes (skip 5 data points, take the 6th)
+            interval = 6 # Every 30 minutes (skip 5 data points, take the 6th)
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
