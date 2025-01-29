@@ -90,13 +90,13 @@ def renuncio_data():
 #        logging.info(f"Solar radiation: {solar_radiation}")
 
 
-        date: "29/01/25"
-        time: "1200"
-        temperature: "12"
-        wind_speed: "4"
-        wind_direction: "NNW"
-        humidity: "98"
-        solar_radiation: "0"
+        date = "29/01/25"
+        time = "1200"
+        temperature = "12"
+        wind_speed = "4"
+        wind_direction = "NNW"
+        humidity = "98"
+        solar_radiation = "0"
 
 
         # Format the data
