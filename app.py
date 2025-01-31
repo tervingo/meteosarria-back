@@ -70,30 +70,22 @@ def setup_chrome_options():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
     
-    # Configuración específica para Render
-    chrome_paths = [
-        '/usr/bin/google-chrome',
-        '/usr/bin/google-chrome-stable',
-        '/opt/google/chrome/chrome'
-    ]
+    # Configuración específica para el entorno Docker de browserless
+    chrome_binary = '/usr/bin/google-chrome-stable'
+    if not os.path.exists(chrome_binary):
+        chrome_binary = '/usr/bin/chromium'
     
-    chrome_binary = None
-    for path in chrome_paths:
-        if os.path.exists(path):
-            chrome_binary = path
-            logger.info(f"Found Chrome binary at: {path}")
-            break
-    
-    if chrome_binary:
+    if os.path.exists(chrome_binary):
+        logger.info(f"Found Chrome/Chromium binary at: {chrome_binary}")
         options.binary_location = chrome_binary
     else:
-        logger.error("No Chrome binary found in any expected location")
-        raise Exception("Chrome binary not found")
+        raise Exception(f"No Chrome binary found at {chrome_binary}")
     
     # User Agent
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     return options
+
 
 
 def get_weather_data():
@@ -106,8 +98,8 @@ def get_weather_data():
         logger.info("Initializing Chrome driver...")
         driver = uc.Chrome(
             options=options,
-            version_main=120,  # Asegúrate de que esto coincida con la versión instalada
-            driver_executable_path=None  # Dejar que undetected_chromedriver lo maneje
+            version_main=120,
+            driver_executable_path=None
         )
         logger.info("Chrome driver initialized successfully")
         
