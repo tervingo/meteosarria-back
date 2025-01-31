@@ -62,41 +62,63 @@ def live_weather():
 
 def setup_chrome_options():
     options = uc.ChromeOptions()
+    
+    # Configuración básica
     options.add_argument('--headless=new')
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
     
-    # En Render, Chrome ya está instalado en una ubicación específica
-    chrome_binary = "/usr/bin/google-chrome"
-    if os.path.exists(chrome_binary):
-        logger.info(f"Using Chrome binary at {chrome_binary}")
-        options.binary_location = chrome_binary
+    # Configuración específica para Render
+    chrome_paths = [
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/opt/google/chrome/chrome'
+    ]
     
+    chrome_binary = None
+    for path in chrome_paths:
+        if os.path.exists(path):
+            chrome_binary = path
+            logger.info(f"Found Chrome binary at: {path}")
+            break
+    
+    if chrome_binary:
+        options.binary_location = chrome_binary
+    else:
+        logger.error("No Chrome binary found in any expected location")
+        raise Exception("Chrome binary not found")
+    
+    # User Agent
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    
     return options
 
 
 def get_weather_data():
     driver = None
     try:
+        logger.info("Setting up Chrome options...")
         options = setup_chrome_options()
-        logger.info("Chrome options configured")
+        logger.info("Chrome options configured successfully")
         
-        # No especificar driver_executable_path para permitir que undetected_chromedriver lo maneje
+        logger.info("Initializing Chrome driver...")
         driver = uc.Chrome(
             options=options,
-            version_main=120  # Asegúrate de que esto coincida con la versión de Chrome instalada
+            version_main=120,  # Asegúrate de que esto coincida con la versión instalada
+            driver_executable_path=None  # Dejar que undetected_chromedriver lo maneje
         )
-        logger.info("Chrome driver initialized")
+        logger.info("Chrome driver initialized successfully")
         
         driver.set_page_load_timeout(20)
-        logger.info("Loading page...")
+        logger.info("Page load timeout set")
         
+        logger.info("Accessing website...")
         driver.get('https://renuncio.com/meteorologia/actual')
-        logger.info("Page loaded")
+        logger.info("Website accessed successfully")
         
+        # Esperar y obtener contenido
         time.sleep(5)
         content = driver.page_source
         logger.info("Content retrieved successfully")
@@ -105,6 +127,8 @@ def get_weather_data():
             
     except Exception as e:
         logger.error(f"Error in get_weather_data: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
+        logger.error(f"Error args: {e.args}")
         return None
         
     finally:
@@ -156,7 +180,7 @@ async def renuncio_data():
  
         pattern = r"(?si)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
         # Find all matches of the pattern in the HTML content
-        matches = re.findall(pattern, html_content)
+        matches = re.findall(pattern, content)
         logging.info(f"Matches: {matches}")
 
         # Extract the data from the matches
