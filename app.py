@@ -13,12 +13,14 @@ import time
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import threading
 
 app = Flask(__name__)
 CORS(app)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # MongoDB connection
 try:
@@ -58,69 +60,86 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-def get_weather_data():
-    # Configurar opciones del navegador
+def setup_chrome_options():
     options = uc.ChromeOptions()
-    options.add_argument('--headless=new')  # Nuevo modo headless
+    options.add_argument('--headless=new')
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
-    options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--window-size=1920,1080')
     
-    # Añadir headers realistas
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    options.add_argument('--accept-language=es-ES,es;q=0.9,en;q=0.8')
-    
-    try:
-        # Inicializar el driver con undetected_chromedriver
-        driver = uc.Chrome(options=options)
-        driver.set_page_load_timeout(30)
-        
-        # Cargar la página
-        driver.get('https://renuncio.com/meteorologia/actual')
-        
-        # Esperar a que la página se cargue completamente
-        wait = WebDriverWait(driver, 20)
-        
-        # Esperar a que desaparezca el desafío de Cloudflare
-        time.sleep(10)  # Dar tiempo para que se procese el JavaScript de Cloudflare
-        
-        # Verificar si seguimos en la página de Cloudflare
-        if "Cloudflare" in driver.page_source:
-            print("Todavía en la página de Cloudflare, esperando más tiempo...")
-            time.sleep(10)
-        
-        # Obtener el contenido final
-        content = driver.page_source
-        
-        # Verificar si el contenido es válido
-        if "Cloudflare" not in content:
-            return content
+    # Configuración específica para Render
+    if os.environ.get('RENDER'):
+        chrome_binary = "/usr/bin/google-chrome-stable"
+        if os.path.exists(chrome_binary):
+            logger.info(f"Setting chrome binary location to {chrome_binary}")
+            options.binary_location = chrome_binary
         else:
-            print("No se pudo bypassear Cloudflare")
-            return None
+            logger.error(f"Chrome binary not found at {chrome_binary}")
+    
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    
+    return options
+
+def get_weather_data():
+    driver = None
+    try:
+        options = setup_chrome_options()
+        logger.info("Chrome options configured")
+        
+        # No especificar driver_executable_path para permitir que undetected_chromedriver lo maneje
+        driver = uc.Chrome(
+            options=options,
+            version_main=120  # Asegúrate de que esto coincida con la versión de Chrome instalada
+        )
+        logger.info("Chrome driver initialized")
+        
+        driver.set_page_load_timeout(20)
+        logger.info("Loading page...")
+        
+        driver.get('https://renuncio.com/meteorologia/actual')
+        logger.info("Page loaded")
+        
+        time.sleep(5)
+        content = driver.page_source
+        logger.info("Content retrieved successfully")
+        
+        return content
             
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error in get_weather_data: {str(e)}")
         return None
         
     finally:
-        driver.quit()
+        if driver:
+            try:
+                driver.quit()
+                logger.info("Driver closed successfully")
+            except Exception as e:
+                logger.error(f"Error closing driver: {str(e)}")
 
-cache = {}
-CACHE_DURATION = timedelta(minutes=2)
+class WeatherCache:
+    def __init__(self):
+        self._cache = {}
+        self._lock = threading.Lock()
+        self.CACHE_DURATION = timedelta(minutes=2)
 
-def get_cached_weather():
-    now = datetime.now()
-    if 'weather' in cache:
-        timestamp, content = cache['weather']
-        if now - timestamp < CACHE_DURATION:
+    def get(self):
+        with self._lock:
+            now = datetime.now()
+            if 'weather' in self._cache:
+                timestamp, content = self._cache['weather']
+                if now - timestamp < self.CACHE_DURATION:
+                    logger.info("Returning cached content")
+                    return content
+            
+            logger.info("Fetching fresh content")
+            content = get_weather_data()
+            if content:
+                self._cache['weather'] = (now, content)
             return content
-    
-    content = get_weather_data()
-    if content:
-        cache['weather'] = (now, content)
-    return content
+
+weather_cache = WeatherCache()
 
 
         
@@ -129,11 +148,12 @@ async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
  
-        html_content = get_cached_weather()
+        logger.info("Weather endpoint called")
+        content = weather_cache.get()
  
         # Configure Chrome options for headless mode
 
-        logging.info(f"HTML Content: {html_content}...")
+        logging.info(f"HTML Content: {content}...")
 
         # Define the regular expression pattern to extract the data
  
