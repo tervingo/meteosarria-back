@@ -61,6 +61,10 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+#-----------------------
+# api/renuncio AP
+#-----------------------
+
 def get_chrome_version():
     try:
         # Ejecutar el comando chrome --version
@@ -78,14 +82,22 @@ def get_chrome_version():
 def setup_chrome_options():
     options = uc.ChromeOptions()
     
-    # Configuración básica
+    # Enhanced browser-like behavior
     options.add_argument('--headless=new')
     options.add_argument('--disable-gpu')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
+    options.add_argument('--start-maximized')
     
-    # Configuración específica para el entorno Docker
+    # Additional settings to appear more like a real browser
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--disable-infobars')
+    options.add_argument('--lang=es-ES')
+    
+    # Set a more realistic user agent
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36')
+    
     chrome_binary = '/usr/bin/google-chrome-stable'
     if os.path.exists(chrome_binary):
         logger.info(f"Found Chrome binary at: {chrome_binary}")
@@ -93,43 +105,71 @@ def setup_chrome_options():
     else:
         raise Exception(f"No Chrome binary found at {chrome_binary}")
     
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    
     return options
 
+def wait_for_cloudflare(driver, timeout=30):
+    """Wait for Cloudflare challenge to be solved"""
+    try:
+        # Wait for Cloudflare challenge to complete
+        WebDriverWait(driver, timeout).until_not(
+            EC.presence_of_element_located((By.ID, "challenge-running"))
+        )
+        
+        # Additional wait for page load
+        WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        
+        # Check if we're still on Cloudflare page
+        if "Just a moment" in driver.page_source or "Cloudflare" in driver.page_source:
+            logger.info("Still on Cloudflare page, waiting longer...")
+            time.sleep(10)
+            return False
+        return True
+    except Exception as e:
+        logger.error(f"Error waiting for Cloudflare: {e}")
+        return False
 
 def get_weather_data():
     driver = None
     try:
         logger.info("Setting up Chrome options...")
         options = setup_chrome_options()
-        logger.info("Chrome options configured successfully")
         
-        # Obtener la versión de Chrome instalada
         chrome_version = get_chrome_version()
         logger.info(f"Using Chrome version: {chrome_version}")
         
-        logger.info("Initializing Chrome driver...")
         driver = uc.Chrome(
             options=options,
-            version_main=chrome_version,  # Usar la versión detectada
+            version_main=chrome_version,
             driver_executable_path=None
         )
-        logger.info("Chrome driver initialized successfully")
         
-        driver.set_page_load_timeout(20)
-        logger.info("Page load timeout set")
+        # Set longer page load timeout
+        driver.set_page_load_timeout(30)
         
+        # Initial page load
         logger.info("Accessing website...")
         driver.get('https://renuncio.com/meteorologia/actual')
-        logger.info("Website accessed successfully")
         
-        # Esperar y obtener contenido
+        # Wait for initial page load
         time.sleep(5)
-        content = driver.page_source
-        logger.info("Content retrieved successfully")
         
-        return content
+        # Handle Cloudflare
+        if wait_for_cloudflare(driver):
+            logger.info("Successfully bypassed Cloudflare")
+            content = driver.page_source
+            
+            # Verify we got the actual content
+            if "Just a moment" not in content and "Cloudflare" not in content:
+                logger.info("Content retrieved successfully")
+                return content
+            else:
+                logger.error("Still getting Cloudflare page")
+                return None
+        else:
+            logger.error("Failed to bypass Cloudflare")
+            return None
             
     except Exception as e:
         logger.error(f"Error in get_weather_data: {str(e)}")
@@ -144,7 +184,7 @@ def get_weather_data():
                 logger.info("Driver closed successfully")
             except Exception as e:
                 logger.error(f"Error closing driver: {str(e)}")
-
+                
 class WeatherCache:
     def __init__(self):
         self._cache = {}
