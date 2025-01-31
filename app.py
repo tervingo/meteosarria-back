@@ -63,7 +63,7 @@ async def renuncio_data():
         renuncio_url = "https://renuncio.com/meteorologia/actual"
 
         scraper = cloudscraper.create_scraper()
-        return scraper.get(renuncio_url).text
+        html_content = scraper.get(renuncio_url).text
  
         # Configure Chrome options for headless mode
 
