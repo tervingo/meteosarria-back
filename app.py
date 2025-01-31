@@ -68,18 +68,15 @@ def setup_chrome_options():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
     
-    # Configuración específica para Render
-    if os.environ.get('RENDER'):
-        chrome_binary = "/usr/bin/google-chrome-stable"
-        if os.path.exists(chrome_binary):
-            logger.info(f"Setting chrome binary location to {chrome_binary}")
-            options.binary_location = chrome_binary
-        else:
-            logger.error(f"Chrome binary not found at {chrome_binary}")
+    # En Render, Chrome ya está instalado en una ubicación específica
+    chrome_binary = "/usr/bin/google-chrome"
+    if os.path.exists(chrome_binary):
+        logger.info(f"Using Chrome binary at {chrome_binary}")
+        options.binary_location = chrome_binary
     
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    
     return options
+
 
 def get_weather_data():
     driver = None
