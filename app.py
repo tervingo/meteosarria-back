@@ -8,8 +8,9 @@ import os
 import pytz
 import requests
 import re
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+#from selenium import webdriver
+#from selenium.webdriver.chrome.options import Options
+import cloudscraper
 
 app = Flask(__name__)
 CORS(app)
@@ -61,16 +62,9 @@ async def renuncio_data():
         logging.info("renuncio endpoint called")
         renuncio_url = "https://renuncio.com/meteorologia/actual"
 
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Ejecutar en modo headless
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        
-        driver = webdriver.Chrome(options=chrome_options)
-        driver.get('renuncio_url')
-        html_content = driver.page_source
-        driver.quit()
-
+        scraper = cloudscraper.create_scraper()
+        return scraper.get(renuncio_url).text
+ 
         # Configure Chrome options for headless mode
 
         logging.info(f"HTML Content: {html_content}...")
