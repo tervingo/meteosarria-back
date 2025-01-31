@@ -8,9 +8,8 @@ import os
 import pytz
 import requests
 import re
+import undetected_chromedriver as uc
 import time
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -60,43 +59,51 @@ def live_weather():
         return jsonify({"error": "Internal server error"}), 500
 
 def get_weather_data():
-    chrome_options = Options()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
+    # Configurar opciones del navegador
+    options = uc.ChromeOptions()
+    options.add_argument('--headless=new')  # Nuevo modo headless
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('--disable-dev-shm-usage')
     
-    # Añadir headers más realistas
-    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    chrome_options.add_argument('--accept-language=es-ES,es;q=0.9,en;q=0.8')
-    
-    driver = webdriver.Chrome(options=chrome_options)
+    # Añadir headers realistas
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    options.add_argument('--accept-language=es-ES,es;q=0.9,en;q=0.8')
     
     try:
-        # Configurar un timeout más largo para la carga inicial
+        # Inicializar el driver con undetected_chromedriver
+        driver = uc.Chrome(options=options)
         driver.set_page_load_timeout(30)
         
         # Cargar la página
         driver.get('https://renuncio.com/meteorologia/actual')
         
-        # Esperar a que desaparezca el elemento de Cloudflare
+        # Esperar a que la página se cargue completamente
         wait = WebDriverWait(driver, 20)
-        wait.until_not(
-            EC.presence_of_element_located((By.ID, "challenge-running"))
-        )
         
-        # Esperar un momento adicional para asegurar que la página se ha cargado completamente
-        time.sleep(5)
+        # Esperar a que desaparezca el desafío de Cloudflare
+        time.sleep(10)  # Dar tiempo para que se procese el JavaScript de Cloudflare
+        
+        # Verificar si seguimos en la página de Cloudflare
+        if "Cloudflare" in driver.page_source:
+            print("Todavía en la página de Cloudflare, esperando más tiempo...")
+            time.sleep(10)
         
         # Obtener el contenido final
         content = driver.page_source
         
-        return content
-    
+        # Verificar si el contenido es válido
+        if "Cloudflare" not in content:
+            return content
+        else:
+            print("No se pudo bypassear Cloudflare")
+            return None
+            
     except Exception as e:
         print(f"Error: {str(e)}")
         return None
-    
+        
     finally:
         driver.quit()
 

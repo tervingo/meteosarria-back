@@ -11,3 +11,4 @@ dropbox
 requests-oauthlib
 selenium
 cloudscraper
+undetected-chromedriver
