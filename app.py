@@ -8,9 +8,12 @@ import os
 import pytz
 import requests
 import re
-#from selenium import webdriver
-#from selenium.webdriver.chrome.options import Options
-import cloudscraper
+import time
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 app = Flask(__name__)
 CORS(app)
@@ -56,14 +59,53 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+def get_weather_data():
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    
+    # Añadir headers más realistas
+    chrome_options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    chrome_options.add_argument('--accept-language=es-ES,es;q=0.9,en;q=0.8')
+    
+    driver = webdriver.Chrome(options=chrome_options)
+    
+    try:
+        # Configurar un timeout más largo para la carga inicial
+        driver.set_page_load_timeout(30)
+        
+        # Cargar la página
+        driver.get('https://renuncio.com/meteorologia/actual')
+        
+        # Esperar a que desaparezca el elemento de Cloudflare
+        wait = WebDriverWait(driver, 20)
+        wait.until_not(
+            EC.presence_of_element_located((By.ID, "challenge-running"))
+        )
+        
+        # Esperar un momento adicional para asegurar que la página se ha cargado completamente
+        time.sleep(5)
+        
+        # Obtener el contenido final
+        content = driver.page_source
+        
+        return content
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return None
+    
+    finally:
+        driver.quit()
+
 @app.route('/api/renuncio')
 async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
-        renuncio_url = "https://renuncio.com/meteorologia/actual"
-
-        scraper = cloudscraper.create_scraper()
-        html_content = scraper.get(renuncio_url).text
+ 
+        html_content = get_weather_data()
  
         # Configure Chrome options for headless mode
 
