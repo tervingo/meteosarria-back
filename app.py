@@ -14,6 +14,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import threading
+import subprocess
 
 app = Flask(__name__)
 CORS(app)
@@ -60,6 +61,20 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
+def get_chrome_version():
+    try:
+        # Ejecutar el comando chrome --version
+        result = subprocess.run(['google-chrome', '--version'], 
+                              capture_output=True, 
+                              text=True)
+        # Extraer el número de versión principal
+        version = result.stdout.strip().split()[-1].split('.')[0]
+        logger.info(f"Detected Chrome version: {version}")
+        return int(version)
+    except Exception as e:
+        logger.error(f"Error getting Chrome version: {e}")
+        return 120  # versión por defecto si no podemos detectar
+
 def setup_chrome_options():
     options = uc.ChromeOptions()
     
@@ -70,22 +85,17 @@ def setup_chrome_options():
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--window-size=1920,1080')
     
-    # Configuración específica para el entorno Docker de browserless
+    # Configuración específica para el entorno Docker
     chrome_binary = '/usr/bin/google-chrome-stable'
-    if not os.path.exists(chrome_binary):
-        chrome_binary = '/usr/bin/chromium'
-    
     if os.path.exists(chrome_binary):
-        logger.info(f"Found Chrome/Chromium binary at: {chrome_binary}")
+        logger.info(f"Found Chrome binary at: {chrome_binary}")
         options.binary_location = chrome_binary
     else:
         raise Exception(f"No Chrome binary found at {chrome_binary}")
     
-    # User Agent
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
     return options
-
 
 
 def get_weather_data():
@@ -95,10 +105,14 @@ def get_weather_data():
         options = setup_chrome_options()
         logger.info("Chrome options configured successfully")
         
+        # Obtener la versión de Chrome instalada
+        chrome_version = get_chrome_version()
+        logger.info(f"Using Chrome version: {chrome_version}")
+        
         logger.info("Initializing Chrome driver...")
         driver = uc.Chrome(
             options=options,
-            version_main=120,
+            version_main=chrome_version,  # Usar la versión detectada
             driver_executable_path=None
         )
         logger.info("Chrome driver initialized successfully")
