@@ -60,17 +60,16 @@ async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
         renuncio_url = "https://renuncio.com/meteorologia/actual"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-    
-        response = requests.get(renuncio_url, headers=headers)
-        html_content = response.text
 
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")  # Ejecutar en modo headless
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.get('renuncio_url')
+        html_content = driver.page_source
+        driver.quit()
 
         # Configure Chrome options for headless mode
 
