@@ -107,12 +107,29 @@ def get_weather_data():
     finally:
         driver.quit()
 
+cache = {}
+CACHE_DURATION = timedelta(minutes=2)
+
+def get_cached_weather():
+    now = datetime.now()
+    if 'weather' in cache:
+        timestamp, content = cache['weather']
+        if now - timestamp < CACHE_DURATION:
+            return content
+    
+    content = get_weather_data()
+    if content:
+        cache['weather'] = (now, content)
+    return content
+
+
+        
 @app.route('/api/renuncio')
 async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
  
-        html_content = get_weather_data()
+        html_content = get_cached_weather()
  
         # Configure Chrome options for headless mode
 
