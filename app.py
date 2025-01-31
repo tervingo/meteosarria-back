@@ -65,131 +65,64 @@ def live_weather():
 # api/renuncio AP
 #-----------------------
 
-def get_chrome_version():
-    try:
-        # Ejecutar el comando chrome --version
-        result = subprocess.run(['google-chrome', '--version'], 
-                              capture_output=True, 
-                              text=True)
-        # Extraer el número de versión principal
-        version = result.stdout.strip().split()[-1].split('.')[0]
-        logger.info(f"Detected Chrome version: {version}")
-        return int(version)
-    except Exception as e:
-        logger.error(f"Error getting Chrome version: {e}")
-        return 120  # versión por defecto si no podemos detectar
 
-def setup_chrome_options():
-    options = uc.ChromeOptions()
-    
-    # Enhanced browser-like behavior
-    options.add_argument('--headless=new')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--start-maximized')
-    
-    # Additional settings to appear more like a real browser
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-infobars')
-    options.add_argument('--lang=es-ES')
-    
-    # Set a more realistic user agent
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36')
-    
-    chrome_binary = '/usr/bin/google-chrome-stable'
-    if os.path.exists(chrome_binary):
-        logger.info(f"Found Chrome binary at: {chrome_binary}")
-        options.binary_location = chrome_binary
-    else:
-        raise Exception(f"No Chrome binary found at {chrome_binary}")
-    
-    return options
-
-def wait_for_cloudflare(driver, timeout=30):
-    """Wait for Cloudflare challenge to be solved"""
-    try:
-        # Wait for Cloudflare challenge to complete
-        WebDriverWait(driver, timeout).until_not(
-            EC.presence_of_element_located((By.ID, "challenge-running"))
-        )
-        
-        # Additional wait for page load
-        WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
-        
-        # Check if we're still on Cloudflare page
-        if "Just a moment" in driver.page_source or "Cloudflare" in driver.page_source:
-            logger.info("Still on Cloudflare page, waiting longer...")
-            time.sleep(10)
-            return False
-        return True
-    except Exception as e:
-        logger.error(f"Error waiting for Cloudflare: {e}")
-        return False
+def create_ssl_context():
+    """Crea un contexto SSL similar al que usa Rainmeter"""
+    context = ssl.create_default_context()
+    context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.maximum_version = ssl.TLSVersion.TLSv1_2
+    context.set_ciphers('HIGH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH')
+    return context
 
 def get_weather_data():
-    driver = None
+    """
+    Obtiene los datos meteorológicos usando una conexión TLS directa
+    similar a la que usa Rainmeter
+    """
     try:
-        logger.info("Setting up Chrome options...")
-        options = setup_chrome_options()
+        # Crear socket
+        sock = socket.create_connection(('renuncio.com', 443))
+        context = create_ssl_context()
         
-        chrome_version = get_chrome_version()
-        logger.info(f"Using Chrome version: {chrome_version}")
+        # Envolver el socket con TLS
+        ssock = context.wrap_socket(sock, server_hostname='renuncio.com')
         
-        driver = uc.Chrome(
-            options=options,
-            version_main=chrome_version,
-            driver_executable_path=None
+        # Construir petición HTTP básica
+        request = (
+            'GET /meteorologia/actual HTTP/1.1\r\n'
+            'Host: renuncio.com\r\n'
+            'Cache-Control: no-cache\r\n'
+            'Connection: close\r\n'
+            '\r\n'
         )
         
-        # Set longer page load timeout
-        driver.set_page_load_timeout(30)
+        # Enviar petición
+        ssock.send(request.encode())
         
-        # Initial page load
-        logger.info("Accessing website...")
-        driver.get('https://renuncio.com/meteorologia/actual')
-        
-        # Wait for initial page load
-        time.sleep(5)
-        
-        # Handle Cloudflare
-        if wait_for_cloudflare(driver):
-            logger.info("Successfully bypassed Cloudflare")
-            content = driver.page_source
+        # Recibir respuesta
+        response = b''
+        while True:
+            chunk = ssock.recv(8192)
+            if not chunk:
+                break
+            response += chunk
             
-            # Verify we got the actual content
-            if "Just a moment" not in content and "Cloudflare" not in content:
-                logger.info("Content retrieved successfully")
-                return content
-            else:
-                logger.error("Still getting Cloudflare page")
-                return None
-        else:
-            logger.error("Failed to bypass Cloudflare")
-            return None
+        return response.decode('utf-8')
             
     except Exception as e:
-        logger.error(f"Error in get_weather_data: {str(e)}")
-        logger.error(f"Error type: {type(e)}")
-        logger.error(f"Error args: {e.args}")
+        logger.error(f"Error en la petición: {str(e)}")
         return None
-        
     finally:
-        if driver:
-            try:
-                driver.quit()
-                logger.info("Driver closed successfully")
-            except Exception as e:
-                logger.error(f"Error closing driver: {str(e)}")
-                
+        try:
+            ssock.close()
+        except:
+            pass
+
 class WeatherCache:
     def __init__(self):
         self._cache = {}
         self._lock = threading.Lock()
-        self.CACHE_DURATION = timedelta(minutes=2)
+        self.CACHE_DURATION = timedelta(minutes=1)  # Igual que Rainmeter
 
     def get(self):
         with self._lock:
@@ -197,18 +130,16 @@ class WeatherCache:
             if 'weather' in self._cache:
                 timestamp, content = self._cache['weather']
                 if now - timestamp < self.CACHE_DURATION:
-                    logger.info("Returning cached content")
+                    logger.info("Retornando contenido cacheado")
                     return content
             
-            logger.info("Fetching fresh content")
+            logger.info("Obteniendo contenido fresco")
             content = get_weather_data()
             if content:
                 self._cache['weather'] = (now, content)
             return content
 
 weather_cache = WeatherCache()
-
-
         
 @app.route('/api/renuncio')
 async def renuncio_data():
