@@ -60,29 +60,22 @@ async def renuncio_data():
     try:
         logging.info("renuncio endpoint called")
         renuncio_url = "https://renuncio.com/meteorologia/actual"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+        }
+    
+        response = requests.get(renuncio_url, headers=headers)
+        html_content = response.text
+
 
         # Configure Chrome options for headless mode
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")
-        chrome_options.add_argument("--no-sandbox") # Often necessary in restricted environments
-        chrome_options.add_argument("--disable-dev-shm-usage") # Might be needed in Docker
-
-        # Create a WebDriver instance (using Chrome in this example)
-        # You might need to specify the path to the chromedriver executable
-        driver = webdriver.Chrome(options=chrome_options) 
-
-        # Navigate to the URL
-        driver.get(renuncio_url)
-
-        # Get the HTML content
-        html_content = driver.page_source
-
 
         logging.info(f"HTML Content: {html_content}...")
- 
-        # Close the browser
-        driver.quit()
-        
+
         # Define the regular expression pattern to extract the data
  
         pattern = r"(?si)(.*)Actualizado el(.*)>(.*)<\/span> a las(.*)>(.*)<\/span>(.*)<div class=\"temperatura_valor\">(.*)<\/div>(.*)VIENTO<(.*)(\d+(?:,\d+)?) km\/h \- (.*)\n.*<\/div>(.*)(\d+) %(.*)(\d+(?:,\d+)?)(.*)\sW\/(.*)/"
