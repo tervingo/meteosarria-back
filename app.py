@@ -83,48 +83,42 @@ def temperature_data():
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
+        # Asegurar que los días siempre tienen dos dígitos
         end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
         start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
-
-        logging.info(f"Querying data from {start_time_str} to {end_time_str} for time range: {time_range}")
         
-        # Añadir logs de diagnóstico
-        total_count = collection.count_documents({})
-        logging.info(f"Total documents in collection: {total_count}")
+        # Para debug
+        logging.info(f"Start time string: {start_time_str}")
+        logging.info(f"End time string: {end_time_str}")
         
-        # Hacer una consulta de prueba para ver los últimos 5 documentos
-        recent_docs = list(collection.find().sort("timestamp", -1).limit(5))
-        logging.info(f"Latest 5 documents timestamps: {[doc['timestamp'] for doc in recent_docs]}")
-        
-        # Hacer la consulta original pero con más logging
+        # Hacer la consulta incluyendo la hora actual
         query = {
             "timestamp": {
                 "$gte": start_time_str,
                 "$lte": end_time_str
             }
         }
-        logging.info(f"Query filter: {query}")
         
+        # Obtener los documentos y ordenarlos
         data = list(collection.find(query).sort("timestamp", 1))
-        logging.info(f"Query returned {len(data)} documents")
         
-        if len(data) == 0:
-            # Si no hay datos, veamos qué documentos hay alrededor de estas fechas
-            around_start = list(collection.find({"timestamp": {"$lte": start_time_str}}).sort("timestamp", -1).limit(1))
-            around_end = list(collection.find({"timestamp": {"$gte": end_time_str}}).sort("timestamp", 1).limit(1))
-            logging.info(f"Closest document before start: {around_start[0]['timestamp'] if around_start else 'None'}")
-            logging.info(f"Closest document after end: {around_end[0]['timestamp'] if around_end else 'None'}")
-
+        logging.info(f"Query returned {len(data)} documents")
+        if len(data) > 0:
+            logging.info(f"First document timestamp: {data[0]['timestamp']}")
+            logging.info(f"Last document timestamp: {data[-1]['timestamp']}")
+        
+        # Aplicar el intervalo de muestreo
         sampled_data = data[::interval]
         
+        # Convertir ObjectId a string para la serialización JSON
         for entry in sampled_data:
             entry["_id"] = str(entry["_id"])
-            
+        
         return jsonify(sampled_data)
-
+        
     except Exception as e:
         logging.error(f"Error fetching meteo data: {e}", exc_info=True)
-        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 #-----------------------
 # api/renuncio AP
