@@ -153,31 +153,29 @@ def temperature_data():
 
 
 def create_ssl_context():
-    """Crea un contexto SSL similar al que usa Rainmeter"""
+    """Crea un contexto SSL similar al de WinINet"""
     context = ssl.create_default_context()
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
-    context.set_ciphers('HIGH:!aNULL:!eNULL:!EXPORT:!DES:!RC4:!MD5:!PSK:!aECDH')
+    context.set_ciphers('DEFAULT@SECLEVEL=1')
+    context.options &= ~ssl.OP_ENABLE_MIDDLEBOX_COMPAT
+    context.options &= ~ssl.OP_ENABLE_SERVER_RANK_ORDER
     return context
 
 def get_weather_data():
-    """
-    Obtiene los datos meteorológicos usando una conexión TLS directa
-    similar a la que usa Rainmeter
-    """
+    """Obtiene los datos meteorológicos usando una conexión TLS similar a WinINet"""
     try:
-        # Crear socket
+        # Establecer conexión
         sock = socket.create_connection(('renuncio.com', 443))
         context = create_ssl_context()
         
-        # Envolver el socket con TLS
         ssock = context.wrap_socket(sock, server_hostname='renuncio.com')
         
-        # Construir petición HTTP básica
+        # Headers minimalistas como WinINet
         request = (
             'GET /meteorologia/actual HTTP/1.1\r\n'
             'Host: renuncio.com\r\n'
-            'Cache-Control: no-cache\r\n'
+            'Accept: */*\r\n'
             'Connection: close\r\n'
             '\r\n'
         )
@@ -193,7 +191,12 @@ def get_weather_data():
                 break
             response += chunk
             
-        return response.decode('utf-8')
+        response_text = response.decode('utf-8')
+        
+        # Debug: imprimir primeros bytes de la respuesta
+        logger.info(f"Primeros 200 caracteres de la respuesta: {response_text[:200]}")
+        
+        return response_text
             
     except Exception as e:
         logger.error(f"Error en la petición: {str(e)}")
