@@ -162,27 +162,30 @@ def create_ssl_context():
     return context
 
 def get_weather_data():
-    """Obtiene los datos meteorológicos usando una conexión TLS similar a WinINet"""
+    """Obtiene los datos meteorológicos emulando WinINet más precisamente"""
     try:
-        # Establecer conexión
         sock = socket.create_connection(('renuncio.com', 443))
         context = create_ssl_context()
         
         ssock = context.wrap_socket(sock, server_hostname='renuncio.com')
         
-        # Headers minimalistas como WinINet
+        # Headers más similares a WinINet
         request = (
             'GET /meteorologia/actual HTTP/1.1\r\n'
             'Host: renuncio.com\r\n'
+            'User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 10.0; WOW64; Trident/7.0)\r\n'
             'Accept: */*\r\n'
+            'Accept-Language: es-ES\r\n'
+            'Accept-Encoding: identity\r\n'
             'Connection: close\r\n'
             '\r\n'
         )
         
-        # Enviar petición
+        # Agregar logging para debuggear
+        logger.info(f"Enviando request con headers:\n{request}")
+        
         ssock.send(request.encode())
         
-        # Recibir respuesta
         response = b''
         while True:
             chunk = ssock.recv(8192)
@@ -192,13 +195,13 @@ def get_weather_data():
             
         response_text = response.decode('utf-8')
         
-        # Debug: imprimir primeros bytes de la respuesta
-        logger.info(f"Primeros 200 caracteres de la respuesta: {response_text[:200]}")
+        # Log de respuesta para debug
+        logger.info(f"Headers de respuesta recibidos:\n{response_text.split('\r\n\r\n')[0]}")
         
         return response_text
             
     except Exception as e:
-        logger.error(f"Error en la petición: {str(e)}", exc_info=True)  # Añadido exc_info para más detalles
+        logger.error(f"Error en la petición: {str(e)}", exc_info=True)
         return None
     finally:
         try:
