@@ -85,7 +85,7 @@ def temperature_data():
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
-        # Obtener los días que necesitamos consultar
+        # Obtener los días a consultar
         days_to_query = []
         current_day = start_time
         while current_day <= end_time:
@@ -95,7 +95,7 @@ def temperature_data():
 
         logging.info(f"Días a consultar: {days_to_query}")
 
-        # Construir una consulta que obtenga los documentos por día usando una regex
+        # Construir consulta para obtener documentos por día
         query = {
             "$or": [
                 {"timestamp": {"$regex": f"^{day}"}} for day in days_to_query
@@ -104,7 +104,7 @@ def temperature_data():
         
         logging.info(f"Query: {query}")
         
-        # Obtener todos los documentos de esos días
+        # Obtener documentos
         all_data = list(collection.find(query).sort("timestamp", 1))
         logging.info(f"Documentos encontrados antes de filtrar por hora: {len(all_data)}")
         
@@ -112,24 +112,26 @@ def temperature_data():
             logging.info(f"Primer documento: {all_data[0]['timestamp']}")
             logging.info(f"Último documento: {all_data[-1]['timestamp']}")
 
-        # Filtrar por hora en Python
+        # Función para convertir timestamp string a datetime
         def parse_timestamp(ts):
-            # Convertir el string timestamp a objeto datetime
             return datetime.strptime(ts, "%d-%m-%Y %H:%M")
 
-        start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
-        end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
+        # Convertir las fechas límite a datetime
+        start_dt = parse_timestamp(start_time.strftime("%d-%m-%Y %H:%M"))
+        end_dt = parse_timestamp(end_time.strftime("%d-%m-%Y %H:%M"))
         
-        # Filtrar los datos por el rango de tiempo
+        # Filtrar los datos usando objetos datetime para la comparación
         filtered_data = [
             doc for doc in all_data 
-            if start_time_str <= doc['timestamp'] <= end_time_str
+            if start_dt <= parse_timestamp(doc['timestamp']) <= end_dt
         ]
         
         logging.info(f"Documentos después de filtrar por hora: {len(filtered_data)}")
         if filtered_data:
             logging.info(f"Primer documento filtrado: {filtered_data[0]['timestamp']}")
             logging.info(f"Último documento filtrado: {filtered_data[-1]['timestamp']}")
+            logging.info(f"Hora inicio filtro: {start_dt}")
+            logging.info(f"Hora fin filtro: {end_dt}")
 
         # Aplicar sampling
         sampled_data = filtered_data[::interval]
