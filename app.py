@@ -16,6 +16,8 @@ from selenium.webdriver.support import expected_conditions as EC
 import threading
 import ssl
 import socket
+import ctypes
+from ctypes import wintypes
 
 app = Flask(__name__)
 CORS(app)
@@ -151,70 +153,107 @@ def temperature_data():
 # api/renuncio AP
 #-----------------------
 
+# Cargar wininet.dll
+wininet = ctypes.WinDLL('wininet.dll')
 
-def create_ssl_context():
-    """Crea un contexto SSL similar al de WinINet"""
-    context = ssl.create_default_context()
-    context.minimum_version = ssl.TLSVersion.TLSv1_2
-    context.maximum_version = ssl.TLSVersion.TLSv1_2
-    context.set_ciphers('DEFAULT@SECLEVEL=1')
-    return context
+# Definir constantes de WinINet
+INTERNET_OPEN_TYPE_PRECONFIG = 0
+INTERNET_FLAG_SECURE = 0x00800000
+INTERNET_FLAG_IGNORE_CERT_CN_INVALID = 0x00001000
+INTERNET_FLAG_RELOAD = 0x80000000
+INTERNET_FLAG_NO_CACHE_WRITE = 0x04000000
+INTERNET_FLAG_PRAGMA_NOCACHE = 0x00000100
+INTERNET_FLAG_NO_COOKIES = 0x00080000
+
+# Definir los tipos de retorno para las funciones
+wininet.InternetOpenA.restype = wintypes.HANDLE
+wininet.InternetConnectA.restype = wintypes.HANDLE
+wininet.HttpOpenRequestA.restype = wintypes.HANDLE
+wininet.InternetReadFile.argtypes = [wintypes.HANDLE, wintypes.LPVOID, wintypes.DWORD, wintypes.LPDWORD]
+
 
 def get_weather_data():
-    """Obtiene los datos meteorológicos emulando un IE antiguo"""
+    """Obtiene los datos meteorológicos usando WinINet directamente"""
+    handles = []
     try:
-        sock = socket.create_connection(('renuncio.com', 443))
-        context = create_ssl_context()
-        
-        ssock = context.wrap_socket(sock, server_hostname='renuncio.com')
-        
-        # Headers que emulan IE6 (más antiguo y simple)
-        request = (
-            'GET /meteorologia/actual HTTP/1.1\r\n'
-            'Host: renuncio.com\r\n'
-            'User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\r\n'
-            'Accept: text/html, */*\r\n'
-            'Accept-Language: es\r\n'
-            'Accept-Encoding: identity\r\n'
-            'Connection: close\r\n'
-            'Cache-Control: no-cache\r\n'
-            'Pragma: no-cache\r\n'
-            '\r\n'
+        # Abrir conexión WinINet
+        internet = wininet.InternetOpenA(
+            b"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)",  # User Agent básico
+            INTERNET_OPEN_TYPE_PRECONFIG,
+            None, None, 0
         )
+        if not internet:
+            raise ctypes.WinError()
+        handles.append(internet)
         
-        logger.info("Enviando request con headers:")
-        logger.info(request)
+        # Establecer conexión al servidor
+        connection = wininet.InternetConnectA(
+            internet,
+            b"renuncio.com",
+            443,
+            None, None,
+            3,  # INTERNET_SERVICE_HTTP
+            0, 0
+        )
+        if not connection:
+            raise ctypes.WinError()
+        handles.append(connection)
         
-        ssock.send(request.encode())
+        # Abrir la petición HTTPS
+        flags = (INTERNET_FLAG_SECURE | 
+                INTERNET_FLAG_NO_CACHE_WRITE | 
+                INTERNET_FLAG_PRAGMA_NOCACHE | 
+                INTERNET_FLAG_NO_COOKIES)
         
+        request = wininet.HttpOpenRequestA(
+            connection,
+            b"GET",
+            b"/meteorologia/actual",
+            b"HTTP/1.1",
+            None,
+            None,
+            flags,
+            0
+        )
+        if not request:
+            raise ctypes.WinError()
+        handles.append(request)
+        
+        # Enviar la petición
+        if not wininet.HttpSendRequestA(request, None, 0, None, 0):
+            raise ctypes.WinError()
+        
+        # Leer la respuesta
+        buffer_size = 8192
+        buffer = ctypes.create_string_buffer(buffer_size)
+        bytes_read = wintypes.DWORD()
         response = b''
-        while True:
-            chunk = ssock.recv(8192)
-            if not chunk:
-                break
-            response += chunk
-            
-        response_text = response.decode('utf-8')
-        headers = response_text.split('\r\n\r\n')[0]
-        logger.info("Headers de respuesta recibidos:")
-        logger.info(headers)
         
-        return response_text
+        while True:
+            if not wininet.InternetReadFile(request, buffer, buffer_size, ctypes.byref(bytes_read)):
+                raise ctypes.WinError()
+            
+            if bytes_read.value == 0:
+                break
+                
+            response += buffer.raw[:bytes_read.value]
+        
+        return response.decode('utf-8')
             
     except Exception as e:
-        logger.error(f"Error en la petición: {str(e)}", exc_info=True)
+        logging.error(f"Error en WinINet: {str(e)}", exc_info=True)
         return None
+        
     finally:
-        try:
-            ssock.close()
-        except:
-            pass
+        # Cerrar todos los handles en orden inverso
+        for handle in reversed(handles):
+            wininet.InternetCloseHandle(handle)
 
 class WeatherCache:
     def __init__(self):
         self._cache = {}
         self._lock = threading.Lock()
-        self.CACHE_DURATION = timedelta(minutes=1)  # Igual que Rainmeter
+        self.CACHE_DURATION = timedelta(minutes=1)
 
     def get(self):
         with self._lock:
@@ -222,10 +261,10 @@ class WeatherCache:
             if 'weather' in self._cache:
                 timestamp, content = self._cache['weather']
                 if now - timestamp < self.CACHE_DURATION:
-                    logger.info("Retornando contenido cacheado")
+                    logging.info("Retornando contenido cacheado")
                     return content
             
-            logger.info("Obteniendo contenido fresco")
+            logging.info("Obteniendo contenido fresco")
             content = get_weather_data()
             if content:
                 self._cache['weather'] = (now, content)
