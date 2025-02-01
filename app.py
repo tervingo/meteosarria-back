@@ -85,55 +85,38 @@ def temperature_data():
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
-        # Formatear fechas
-        end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
-        start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
+        # Formatear las fechas asegurándonos de que el día tenga dos dígitos
+        def format_date(dt):
+            day = str(dt.day).zfill(2)  # Esto convierte 1 en "01"
+            return f"{day}-{dt.strftime('%m-%Y %H:%M')}"
+
+        start_time_str = format_date(start_time)
+        end_time_str = format_date(end_time)
         
         logging.info(f"Start time string: {start_time_str}")
         logging.info(f"End time string: {end_time_str}")
-        
-        # Consultas de diagnóstico
-        # 1. Obtener algunos documentos alrededor del rango de fechas
-        around_start = list(collection.find().sort("timestamp", -1).limit(5))
-        logging.info("Últimos 5 documentos en la BD:")
-        for doc in around_start:
-            logging.info(f"Timestamp: {doc['timestamp']}")
 
-        # 2. Hacer una consulta con un rango más amplio para ver qué encontramos
-        wider_start = (end_time - timedelta(hours=48)).strftime("%d-%m-%Y %H:%M")
-        wider_end = end_time.strftime("%d-%m-%Y %H:%M")
-        wider_query = {
-            "timestamp": {
-                "$gte": wider_start,
-                "$lte": wider_end
-            }
-        }
-        wider_results = list(collection.find(wider_query).sort("timestamp", 1))
-        logging.info(f"Consulta con rango más amplio (48h) devolvió {len(wider_results)} documentos")
-        if wider_results:
-            logging.info(f"Primer documento: {wider_results[0]['timestamp']}")
-            logging.info(f"Último documento: {wider_results[-1]['timestamp']}")
-
-        # 3. Intentar una consulta exacta con un timestamp que sabemos que existe
-        if around_start:
-            exact_timestamp = around_start[0]['timestamp']
-            exact_doc = collection.find_one({"timestamp": exact_timestamp})
-            logging.info(f"Búsqueda exacta para timestamp {exact_timestamp}: {'encontrado' if exact_doc else 'no encontrado'}")
-
-        # Consulta original
+        # Construir la consulta usando el formato correcto
         query = {
             "timestamp": {
                 "$gte": start_time_str,
                 "$lte": end_time_str
             }
         }
-        logging.info(f"Query final: {query}")
+        logging.info(f"Query: {query}")
         
+        # Ejecutar la consulta
         data = list(collection.find(query).sort("timestamp", 1))
         logging.info(f"Query returned {len(data)} documents")
         
+        if data:
+            logging.info(f"First document: {data[0]['timestamp']}")
+            logging.info(f"Last document: {data[-1]['timestamp']}")
+            
+        # Aplicar el sampling
         sampled_data = data[::interval]
         
+        # Preparar para JSON
         for entry in sampled_data:
             entry["_id"] = str(entry["_id"])
         
