@@ -62,7 +62,9 @@ def live_weather():
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
-
+#-----------------------
+# api/meteo-data AP
+#-----------------------
 
 @app.route('/api/meteo-data')
 def temperature_data():
@@ -83,15 +85,19 @@ def temperature_data():
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
-        # Asegurar que los días siempre tienen dos dígitos
+        # Asegurarnos de que los días tienen dos dígitos (01 en lugar de 1)
         end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
         start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
         
-        # Para debug
+        # Obtener el día del end_time y ajustar el formato si es necesario
+        day = end_time.day
+        if day < 10:
+            # Asegurarnos de que usamos "01" en lugar de "1"
+            end_time_str = f"0{day}-{end_time.strftime('%m-%Y %H:%M')}"
+        
         logging.info(f"Start time string: {start_time_str}")
         logging.info(f"End time string: {end_time_str}")
         
-        # Hacer la consulta incluyendo la hora actual
         query = {
             "timestamp": {
                 "$gte": start_time_str,
@@ -99,18 +105,15 @@ def temperature_data():
             }
         }
         
-        # Obtener los documentos y ordenarlos
         data = list(collection.find(query).sort("timestamp", 1))
-        
         logging.info(f"Query returned {len(data)} documents")
+        
         if len(data) > 0:
             logging.info(f"First document timestamp: {data[0]['timestamp']}")
             logging.info(f"Last document timestamp: {data[-1]['timestamp']}")
         
-        # Aplicar el intervalo de muestreo
         sampled_data = data[::interval]
         
-        # Convertir ObjectId a string para la serialización JSON
         for entry in sampled_data:
             entry["_id"] = str(entry["_id"])
         
