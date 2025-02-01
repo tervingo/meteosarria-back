@@ -182,7 +182,8 @@ def get_weather_data():
         )
         
         # Agregar logging para debuggear
-        logger.info(f"Enviando request con headers:\n{request}")
+        logger.info("Enviando request con headers:")
+        logger.info(request)
         
         ssock.send(request.encode())
         
@@ -196,7 +197,9 @@ def get_weather_data():
         response_text = response.decode('utf-8')
         
         # Log de respuesta para debug
-        logger.info(f"Headers de respuesta recibidos:\n{response_text.split('\r\n\r\n')[0]}")
+        headers = response_text.split('\r\n\r\n')[0]
+        logger.info("Headers de respuesta recibidos:")
+        logger.info(headers)
         
         return response_text
             
