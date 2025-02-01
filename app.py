@@ -85,36 +85,54 @@ def temperature_data():
         else:
             return jsonify({"error": "Invalid time range"}), 400
 
-        # Formatear las fechas asegurándonos de que el día tenga dos dígitos
-        def format_date(dt):
-            day = str(dt.day).zfill(2)  # Esto convierte 1 en "01"
-            return f"{day}-{dt.strftime('%m-%Y %H:%M')}"
+        # Obtener los días que necesitamos consultar
+        days_to_query = []
+        current_day = start_time
+        while current_day <= end_time:
+            day_str = current_day.strftime("%d-%m-%Y")
+            days_to_query.append(day_str)
+            current_day += timedelta(days=1)
 
-        start_time_str = format_date(start_time)
-        end_time_str = format_date(end_time)
-        
-        logging.info(f"Start time string: {start_time_str}")
-        logging.info(f"End time string: {end_time_str}")
+        logging.info(f"Días a consultar: {days_to_query}")
 
-        # Construir la consulta usando el formato correcto
+        # Construir una consulta que obtenga los documentos por día usando una regex
         query = {
-            "timestamp": {
-                "$gte": start_time_str,
-                "$lte": end_time_str
-            }
+            "$or": [
+                {"timestamp": {"$regex": f"^{day}"}} for day in days_to_query
+            ]
         }
+        
         logging.info(f"Query: {query}")
         
-        # Ejecutar la consulta
-        data = list(collection.find(query).sort("timestamp", 1))
-        logging.info(f"Query returned {len(data)} documents")
+        # Obtener todos los documentos de esos días
+        all_data = list(collection.find(query).sort("timestamp", 1))
+        logging.info(f"Documentos encontrados antes de filtrar por hora: {len(all_data)}")
         
-        if data:
-            logging.info(f"First document: {data[0]['timestamp']}")
-            logging.info(f"Last document: {data[-1]['timestamp']}")
-            
-        # Aplicar el sampling
-        sampled_data = data[::interval]
+        if all_data:
+            logging.info(f"Primer documento: {all_data[0]['timestamp']}")
+            logging.info(f"Último documento: {all_data[-1]['timestamp']}")
+
+        # Filtrar por hora en Python
+        def parse_timestamp(ts):
+            # Convertir el string timestamp a objeto datetime
+            return datetime.strptime(ts, "%d-%m-%Y %H:%M")
+
+        start_time_str = start_time.strftime("%d-%m-%Y %H:%M")
+        end_time_str = end_time.strftime("%d-%m-%Y %H:%M")
+        
+        # Filtrar los datos por el rango de tiempo
+        filtered_data = [
+            doc for doc in all_data 
+            if start_time_str <= doc['timestamp'] <= end_time_str
+        ]
+        
+        logging.info(f"Documentos después de filtrar por hora: {len(filtered_data)}")
+        if filtered_data:
+            logging.info(f"Primer documento filtrado: {filtered_data[0]['timestamp']}")
+            logging.info(f"Último documento filtrado: {filtered_data[-1]['timestamp']}")
+
+        # Aplicar sampling
+        sampled_data = filtered_data[::interval]
         
         # Preparar para JSON
         for entry in sampled_data:
@@ -124,6 +142,7 @@ def temperature_data():
         
     except Exception as e:
         logging.error(f"Error fetching meteo data: {e}", exc_info=True)
+        logging.error("Error detallado:", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 #-----------------------
