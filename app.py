@@ -158,30 +158,30 @@ def create_ssl_context():
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
     context.set_ciphers('DEFAULT@SECLEVEL=1')
-    # Removidas las opciones que no están disponibles
     return context
 
 def get_weather_data():
-    """Obtiene los datos meteorológicos emulando WinINet más precisamente"""
+    """Obtiene los datos meteorológicos emulando un IE antiguo"""
     try:
         sock = socket.create_connection(('renuncio.com', 443))
         context = create_ssl_context()
         
         ssock = context.wrap_socket(sock, server_hostname='renuncio.com')
         
-        # Headers más similares a WinINet
+        # Headers que emulan IE6 (más antiguo y simple)
         request = (
             'GET /meteorologia/actual HTTP/1.1\r\n'
             'Host: renuncio.com\r\n'
-            'User-Agent: Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 10.0; WOW64; Trident/7.0)\r\n'
-            'Accept: */*\r\n'
-            'Accept-Language: es-ES\r\n'
+            'User-Agent: Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\r\n'
+            'Accept: text/html, */*\r\n'
+            'Accept-Language: es\r\n'
             'Accept-Encoding: identity\r\n'
             'Connection: close\r\n'
+            'Cache-Control: no-cache\r\n'
+            'Pragma: no-cache\r\n'
             '\r\n'
         )
         
-        # Agregar logging para debuggear
         logger.info("Enviando request con headers:")
         logger.info(request)
         
@@ -195,8 +195,6 @@ def get_weather_data():
             response += chunk
             
         response_text = response.decode('utf-8')
-        
-        # Log de respuesta para debug
         headers = response_text.split('\r\n\r\n')[0]
         logger.info("Headers de respuesta recibidos:")
         logger.info(headers)
