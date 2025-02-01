@@ -158,8 +158,7 @@ def create_ssl_context():
     context.minimum_version = ssl.TLSVersion.TLSv1_2
     context.maximum_version = ssl.TLSVersion.TLSv1_2
     context.set_ciphers('DEFAULT@SECLEVEL=1')
-    context.options &= ~ssl.OP_ENABLE_MIDDLEBOX_COMPAT
-    context.options &= ~ssl.OP_ENABLE_SERVER_RANK_ORDER
+    # Removidas las opciones que no están disponibles
     return context
 
 def get_weather_data():
@@ -199,7 +198,7 @@ def get_weather_data():
         return response_text
             
     except Exception as e:
-        logger.error(f"Error en la petición: {str(e)}")
+        logger.error(f"Error en la petición: {str(e)}", exc_info=True)  # Añadido exc_info para más detalles
         return None
     finally:
         try:
