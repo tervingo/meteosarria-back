@@ -254,15 +254,22 @@ async def renuncio_data():
         return jsonify({"error": "Internal server error"}), 500
 
 
-@app.route('/webcam-image')
-def webcam_image():
-    logging.info("webcam-image endpoint called")
-    image_url = "https://ibericam.com/espana/burgos/webcam-burgos-catedral-de-burgos/"
-    proxy_url = f"https://api.allorigins.win/raw?url={image_url}"  # Using the public proxy
-    response = requests.get(proxy_url)
-    logging.info(f"Response status code: {response.status_code}")
-    return Response(response.content, content_type=response.headers['Content-Type'])
-
+@app.route('/api/debug/last-records')
+def debug_last_records():
+    try:
+        # Obtener los últimos 5 registros
+        last_records = list(collection.find().sort("timestamp", -1).limit(5))
+        
+        # Convertir ObjectId a string
+        for record in last_records:
+            record["_id"] = str(record["_id"])
+            
+        return jsonify({
+            "count": len(last_records),
+            "records": last_records
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
