@@ -13,7 +13,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Configuración para la API de Burgos Villafría
-AEMET_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqNGFsb25zb0BnbWFpbC5jb20iLCJqdGkiOiI2NWE3MWZmOS1jMjgzLTRmOTMtYjE5NS05YzQ1ZjBmNzI1YTgiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTczOTUyNTYxOSwidXNlcklkIjoiNjVhNzFmZjktYzI4My00ZjkzLWIxOTUtOWM0NWYwZjcyNWE4Iiwicm9sZSI6IiJ9.6cauQ28EPJdrTPc5YIRl0UrIh_76uUP6WYYvIgJKU88"
+AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
 BURGOS_STATION_ID = "2331"  # ID de la estación de Burgos/Villafría
 BASE_URL = "https://opendata.aemet.es/opendata/api"
 
@@ -21,7 +21,7 @@ BASE_URL = "https://opendata.aemet.es/opendata/api"
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # MongoDB connection
@@ -158,15 +158,6 @@ class AEMETError(Exception):
 def get_aemet_data(endpoint: str) -> Tuple[Dict[str, Any], int]:
     """
     Realiza una petición a la API de AEMET
-    
-    Args:
-        endpoint: Ruta del endpoint de la API
-        
-    Returns:
-        Tuple con los datos y el código de estado HTTP
-        
-    Raises:
-        AEMETError: Si hay un error en la petición
     """
     headers = {
         'api_key': AEMET_API_KEY,
@@ -174,73 +165,79 @@ def get_aemet_data(endpoint: str) -> Tuple[Dict[str, Any], int]:
     }
     
     try:
+        logger.debug(f"Realizando petición a AEMET: {BASE_URL}/{endpoint}")
         # Primera petición para obtener la URL de los datos
         response = requests.get(f"{BASE_URL}/{endpoint}", headers=headers)
         response.raise_for_status()
-        data_url = response.json().get('datos')
         
+        data = response.json()
+        logger.debug(f"Respuesta inicial de AEMET: {data}")
+        
+        data_url = data.get('datos')
         if not data_url:
+            logger.error("No se encontró URL de datos en la respuesta")
             raise AEMETError("No se obtuvo URL de datos en la respuesta")
             
         # Segunda petición para obtener los datos reales
+        logger.debug(f"Obteniendo datos de: {data_url}")
         data_response = requests.get(data_url)
         data_response.raise_for_status()
         
         return data_response.json(), 200
         
     except requests.exceptions.RequestException as e:
+        logger.error(f"Error en la petición HTTP: {str(e)}")
         raise AEMETError(f"Error en la petición HTTP: {str(e)}")
     except ValueError as e:
+        logger.error(f"Error al procesar JSON: {str(e)}")
         raise AEMETError(f"Error al procesar JSON: {str(e)}")
-
-def process_weather_data(data: list) -> Dict[str, Any]:
-    """
-    Procesa los datos meteorológicos para extraer la información relevante
-    
-    Args:
-        data: Lista de datos meteorológicos
-        
-    Returns:
-        Diccionario con los datos procesados
-    """
-    if not data or len(data) == 0:
-        return {}
-        
-    latest_data = data[0]
-    
-    return {
-        'timestamp': latest_data.get('fint'),
-        'temperature': latest_data.get('ta'),
-        'humidity': latest_data.get('hr'),
-        'wind_speed': latest_data.get('vv'),
-        'wind_direction': latest_data.get('dv'),
-        'precipitation': latest_data.get('prec'),
-        'pressure': latest_data.get('pres'),
-        'station_name': latest_data.get('ubi'),
-        'station_id': latest_data.get('idema')
-    }
 
 @app.route('/api/burgos', methods=['GET'])
 def get_burgos_weather():
     """
     Endpoint para obtener datos meteorológicos actuales de Burgos/Villafría
-    
-    Returns:
-        JSON con los datos meteorológicos procesados
     """
     try:
+        logger.info("Iniciando petición de datos de Burgos")
+        
+        if AEMET_API_KEY == "TU_API_KEY_AQUI":
+            logger.error("API key no configurada")
+            return jsonify({
+                'status': 'error',
+                'message': 'API key de AEMET no configurada'
+            }), 500
+        
         # Obtener datos de la estación específica
         endpoint = f"observacion/convencional/datos/estacion/{BURGOS_STATION_ID}"
         raw_data, status_code = get_aemet_data(endpoint)
         
-        # Procesar datos
-        processed_data = process_weather_data(raw_data)
+        logger.debug(f"Datos recibidos de AEMET: {raw_data}")
         
-        if not processed_data:
+        if not raw_data:
             return jsonify({
-                'error': 'No hay datos disponibles para la estación'
+                'status': 'error',
+                'message': 'No hay datos disponibles para la estación'
             }), 404
             
+        # Procesar datos - tomar la última medición
+        latest_data = raw_data[0] if raw_data else None
+        
+        if not latest_data:
+            return jsonify({
+                'status': 'error',
+                'message': 'No hay datos recientes disponibles'
+            }), 404
+            
+        processed_data = {
+            'temperature': latest_data.get('ta'),
+            'humidity': latest_data.get('hr'),
+            'wind_speed': latest_data.get('vv'),
+            'wind_direction': latest_data.get('dv'),
+            'pressure': latest_data.get('pres'),
+            'timestamp': latest_data.get('fint'),
+            'station_name': 'Burgos/Villafría'
+        }
+        
         return jsonify({
             'status': 'success',
             'data': processed_data,
@@ -248,12 +245,17 @@ def get_burgos_weather():
         }), 200
         
     except AEMETError as e:
+        logger.error(f"Error de AEMET: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e)
         }), 500
-
-
+    except Exception as e:
+        logger.error(f"Error inesperado: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f"Error interno del servidor: {str(e)}"
+        }), 500
 
 #---------------------------
 # Debug
