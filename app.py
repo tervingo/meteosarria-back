@@ -229,7 +229,8 @@ def get_burgos_weather():
             }), 404
             
         processed_data = {
-            'temperature': latest_data.get('ta'),
+            'temperature': latest_data.get('ts'),  # Cambiado de 'ta' a 'ts' para temperatura superficial
+            'temperature_air': latest_data.get('ta'),  # Añadimos también la temperatura del aire
             'humidity': latest_data.get('hr'),
             'wind_speed': latest_data.get('vv'),
             'wind_direction': latest_data.get('dv'),
@@ -256,6 +257,7 @@ def get_burgos_weather():
             'status': 'error',
             'message': f"Error interno del servidor: {str(e)}"
         }), 500
+
 
 #---------------------------
 # Debug
