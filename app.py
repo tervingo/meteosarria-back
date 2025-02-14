@@ -220,7 +220,7 @@ def get_burgos_weather():
             }), 404
             
         # Procesar datos - tomar la última medición
-        latest_data = raw_data[0] if raw_data else None
+        latest_data = raw_data[-1] if raw_data else None
         
         if not latest_data:
             return jsonify({
@@ -229,8 +229,8 @@ def get_burgos_weather():
             }), 404
             
         processed_data = {
-            'temperature': latest_data.get('ts'),  # Cambiado de 'ta' a 'ts' para temperatura superficial
-            'temperature_air': latest_data.get('ta'),  # Añadimos también la temperatura del aire
+            'temperature': latest_data.get('ta'),  
+            'temperature_sup': latest_data.get('ts'),  
             'humidity': latest_data.get('hr'),
             'wind_speed': latest_data.get('vv'),
             'wind_direction': latest_data.get('dv'),
