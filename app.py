@@ -156,10 +156,18 @@ def yearly_temperature_data():
     try:
         logging.info("yearly-data endpoint called")
         
-        # Obtener el año actual
-        current_year = datetime.now(pytz.timezone('Europe/Madrid')).year
-        start_date = datetime(current_year, 1, 1)
-        end_date = datetime.now(pytz.timezone('Europe/Madrid'))
+        # Definir zona horaria
+        madrid_tz = pytz.timezone('Europe/Madrid')
+        
+        # Obtener el año actual y crear fechas con zona horaria
+        now = datetime.now(madrid_tz)
+        current_year = now.year
+        
+        # Crear start_date con zona horaria
+        start_date = madrid_tz.localize(datetime(current_year, 1, 1))
+        end_date = now
+
+        logging.info(f"Consultando datos desde {start_date.strftime('%d-%m-%Y')} hasta {end_date.strftime('%d-%m-%Y')}")
 
         # Obtener los días a consultar
         days_to_query = []
@@ -169,8 +177,6 @@ def yearly_temperature_data():
             days_to_query.append(day_str)
             current_day += timedelta(days=1)
 
-        logging.info(f"Consultando datos desde {start_date.strftime('%d-%m-%Y')} hasta {end_date.strftime('%d-%m-%Y')}")
-
         # Construir consulta para obtener documentos por día
         query = {
             "$or": [
@@ -178,15 +184,20 @@ def yearly_temperature_data():
             ]
         }
         
+        logging.info(f"Consultando {len(days_to_query)} días")
+        
         # Obtener documentos
         all_data = list(collection.find(query).sort("timestamp", 1))
+        logging.info(f"Encontrados {len(all_data)} registros")
         
         # Procesar datos para obtener máximas, mínimas y medias por día
         daily_data = {}
         
         for entry in all_data:
             try:
+                # Parsear timestamp y convertir a zona horaria de Madrid
                 timestamp = datetime.strptime(entry['timestamp'], "%d-%m-%Y %H:%M")
+                timestamp = madrid_tz.localize(timestamp)
                 date_key = timestamp.strftime("%Y-%m-%d")
                 
                 if date_key not in daily_data:
@@ -196,7 +207,10 @@ def yearly_temperature_data():
                     }
                 
                 if 'external_temperature' in entry and entry['external_temperature'] is not None:
-                    daily_data[date_key]['temps'].append(float(entry['external_temperature']))
+                    temp = float(entry['external_temperature'])
+                    # Filtrar valores atípicos (opcional)
+                    if -40 <= temp <= 50:  # Rango razonable de temperaturas
+                        daily_data[date_key]['temps'].append(temp)
                 
             except (ValueError, TypeError) as e:
                 logging.warning(f"Error procesando entrada {entry['timestamp']}: {str(e)}")
@@ -206,15 +220,18 @@ def yearly_temperature_data():
         processed_data = []
         for date_key, data in daily_data.items():
             if data['temps']:
+                temps = data['temps']
                 processed_data.append({
                     'date': date_key,
-                    'max': max(data['temps']),
-                    'min': min(data['temps']),
-                    'mean': sum(data['temps']) / len(data['temps'])
+                    'max': round(max(temps), 1),
+                    'min': round(min(temps), 1),
+                    'mean': round(sum(temps) / len(temps), 1)
                 })
 
         # Ordenar por fecha
         processed_data.sort(key=lambda x: x['date'])
+        
+        logging.info(f"Procesados datos para {len(processed_data)} días")
         
         return jsonify({
             'status': 'success',
@@ -227,7 +244,6 @@ def yearly_temperature_data():
             'status': 'error',
             'message': str(e)
         }), 500
-
 
 #-----------------------
 # api/burgos (AEMET Villafría)
