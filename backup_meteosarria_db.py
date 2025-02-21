@@ -73,6 +73,7 @@ def handle_dropbox_files():
     1. Intenta eliminar el archivo previo anterior si existe
     2. Renombra el archivo actual como previo
     """
+    global dbx
     try:
         # Primero intentamos eliminar el archivo previo si existe
         try:
