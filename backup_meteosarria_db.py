@@ -4,11 +4,11 @@ import csv
 from pymongo import MongoClient
 from datetime import datetime
 import dropbox
-from dropbox.files import WriteMode
-from dropbox.exceptions import AuthError
+from dropbox.files import WriteMode, DeleteError
+from dropbox.exceptions import AuthError, ApiError
 import pytz
 import requests
-from urllib.parse import quote  # Import for URL encoding
+from urllib.parse import quote
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -67,12 +67,58 @@ def refresh_dropbox_token():
     return token_data["access_token"]
 
 
+def handle_dropbox_files():
+    """
+    Maneja los archivos en Dropbox:
+    1. Intenta eliminar el archivo previo anterior si existe
+    2. Renombra el archivo actual como previo
+    """
+    try:
+        # Primero intentamos eliminar el archivo previo si existe
+        try:
+            dbx.files_delete_v2("/meteosarria_data_previo.csv")
+            logging.info("Archivo previo anterior eliminado")
+        except ApiError as e:
+            if e.error.is_path() and e.error.get_path().is_not_found():
+                logging.info("No existe archivo previo para eliminar")
+            else:
+                raise
+
+        # Ahora intentamos renombrar el archivo actual como previo
+        try:
+            dbx.files_move_v2(
+                "/meteosarria_data.csv",
+                "/meteosarria_data_previo.csv"
+            )
+            logging.info("Archivo actual renombrado como previo")
+        except ApiError as e:
+            if e.error.is_path() and e.error.get_path().is_not_found():
+                logging.info("No existe archivo actual para renombrar")
+            else:
+                raise
+
+    except AuthError as e:
+        logging.info(f"AuthError: {e}. Refreshing token and retrying.")
+        new_access_token = refresh_dropbox_token()
+        
+        # Update Dropbox client with the new access token
+        global dbx
+        dbx = dropbox.Dropbox(
+            oauth2_access_token=new_access_token,
+            oauth2_refresh_token=dropbox_refresh_token,
+            app_key=dropbox_app_key,
+            app_secret=dropbox_app_secret,
+        )
+        # Retry the operation
+        handle_dropbox_files()
+
+
 def export_mongodb_to_csv_and_upload_to_dropbox():
     """
     Fetches data from MongoDB, creates a CSV file, and uploads it to Dropbox.
     Handles Dropbox access token refresh.
     """
-    global dbx  # Declare dbx as global at the beginning of the function 
+    global dbx
 
     try:
         # Fetch data from MongoDB
@@ -86,9 +132,7 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
 
         # Prepare CSV file
         logging.info("Preparing CSV file...")
-        madrid_tz = pytz.timezone("Europe/Madrid")
-        current_time_madrid = datetime.now(madrid_tz)
-        filename = f"meteosarria_data_{current_time_madrid.strftime('%Y%m%d')}.csv"
+        filename = "meteosarria_data.csv"
         filepath = f"/tmp/{filename}"  # Use /tmp for temporary file
 
         with open(filepath, "w", newline="") as csvfile:
@@ -111,6 +155,9 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
                 writer.writerow(doc)
 
         logging.info(f"Data written to local file: {filepath}")
+
+        # Manejar los archivos en Dropbox antes de subir el nuevo
+        handle_dropbox_files()
 
         # Upload to Dropbox
         logging.info(f"Uploading CSV to Dropbox...")
@@ -144,47 +191,6 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
         if "filepath" in locals() and os.path.exists(filepath):
             os.remove(filepath)
             logging.info(f"Temporary file {filepath} removed.")
-
-
-# --- Refresh Token Logic (Run this part ONLY LOCALLY to get the refresh token) ---
-def get_refresh_token(client_id, client_secret, redirect_uri):
-    """
-    Guides the user through the Dropbox OAuth 2.0 flow to obtain a refresh token.
-    This function should be run locally, not on Render.
-    """
-    encoded_redirect_uri = quote(redirect_uri)
-    authorization_base_url = "https://www.dropbox.com/oauth2/authorize"
-    authorization_url = f"{authorization_base_url}?client_id={client_id}&redirect_uri={encoded_redirect_uri}&response_type=code&token_access_type=offline"
-
-    print(
-        "1. Go to this URL in your browser to authorize the app:\n",
-        authorization_url,
-        "\n",
-    )
-    print("2. Authorize the app in your browser.")
-    print("3. Copy the authorization code from the URL.")
-    print("4. Paste the authorization code here and press Enter:\n")
-
-    authorization_code = input("Paste the authorization code here: ")
-
-    token_url = "https://api.dropboxapi.com/oauth2/token"
-    data = {
-        "code": authorization_code,
-        "grant_type": "authorization_code",
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-    }
-
-    response = requests.post(token_url, data=data)
-    response.raise_for_status()
-    token_data = response.json()
-
-    print("Refresh Token:", token_data["refresh_token"])
-    print(
-        "Store this refresh token securely as the DROPBOX_REFRESH_TOKEN environment variable."
-    )
-    return token_data["refresh_token"]
 
 
 # --- Main Execution ---
