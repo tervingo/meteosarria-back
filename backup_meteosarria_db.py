@@ -89,8 +89,8 @@ def handle_dropbox_files():
         try:
             dbx.files_delete_v2("/meteosarria_data_previo.csv")
             logging.info("Archivo previo anterior eliminado")
-        except ApiError as e:
-            if e.error.is_path() and e.error.get_path().is_not_found():
+        except dropbox.exceptions.ApiError as e:
+            if isinstance(e.error, dropbox.files.DeleteError) and e.error.is_path_lookup():
                 logging.info("No existe archivo previo para eliminar")
             else:
                 raise
@@ -102,8 +102,8 @@ def handle_dropbox_files():
                 "/meteosarria_data_previo.csv"
             )
             logging.info("Archivo actual renombrado como previo")
-        except ApiError as e:
-            if e.error.is_path() and e.error.get_path().is_not_found():
+        except dropbox.exceptions.ApiError as e:
+            if isinstance(e.error, dropbox.files.RelocationError) and e.error.is_from_lookup():
                 logging.info("No existe archivo actual para renombrar")
             else:
                 raise
