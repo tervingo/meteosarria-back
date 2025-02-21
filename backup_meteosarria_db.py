@@ -67,6 +67,16 @@ def refresh_dropbox_token():
     return token_data["access_token"]
 
 
+def create_new_dbx_instance(access_token):
+    """Creates a new Dropbox instance with the given access token."""
+    return dropbox.Dropbox(
+        oauth2_access_token=access_token,
+        oauth2_refresh_token=dropbox_refresh_token,
+        app_key=dropbox_app_key,
+        app_secret=dropbox_app_secret,
+    )
+
+
 def handle_dropbox_files():
     """
     Maneja los archivos en Dropbox:
@@ -98,18 +108,10 @@ def handle_dropbox_files():
             else:
                 raise
 
-    except AuthError as e:
-        logging.info(f"AuthError: {e}. Refreshing token and retrying.")
+    except AuthError:
+        logging.info("AuthError durante el manejo de archivos. Refreshing token.")
         new_access_token = refresh_dropbox_token()
-        
-        # Update Dropbox client with the new access token
-        global dbx
-        dbx = dropbox.Dropbox(
-            oauth2_access_token=new_access_token,
-            oauth2_refresh_token=dropbox_refresh_token,
-            app_key=dropbox_app_key,
-            app_secret=dropbox_app_secret,
-        )
+        dbx = create_new_dbx_instance(new_access_token)
         # Retry the operation
         handle_dropbox_files()
 
@@ -167,20 +169,13 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
         with open(filepath, "rb") as f:
             try:
                 dbx.files_upload(f.read(), dropbox_path, mode=WriteMode("overwrite"))
-            except AuthError as e:
-                logging.info(f"AuthError: {e}. Refreshing token and retrying.")
+            except AuthError:
+                logging.info("AuthError durante la subida. Refreshing token.")
                 new_access_token = refresh_dropbox_token()
-
-                # Update Dropbox client with the new access token
-                dbx = dropbox.Dropbox(
-                    oauth2_access_token=new_access_token,
-                    oauth2_refresh_token=dropbox_refresh_token,
-                    app_key=dropbox_app_key,
-                    app_secret=dropbox_app_secret,
-                )
-
+                dbx = create_new_dbx_instance(new_access_token)
                 # Retry the upload
-                dbx.files_upload(f.read(), dropbox_path, mode=WriteMode("overwrite"))
+                with open(filepath, "rb") as f:
+                    dbx.files_upload(f.read(), dropbox_path, mode=WriteMode("overwrite"))
 
         logging.info(f"CSV file uploaded to Dropbox: {dropbox_path}")
 
