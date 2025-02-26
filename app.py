@@ -34,11 +34,34 @@ try:
 except Exception as e:
     logging.error(f"Error connecting to MongoDB: {e}")
 
+# ... existing code ...
+
 @app.route('/api/live')
 def live_weather():
     try:
+        # Get current date in Madrid timezone
+        madrid_tz = pytz.timezone('Europe/Madrid')
+        now = datetime.now(madrid_tz)
+        today = now.strftime("%d-%m-%Y")
+        
+        # Get today's temperature records
+        today_records = list(collection.find({
+            "timestamp": {"$regex": f"^{today}"}
+        }).sort("timestamp", 1))
+        
+        # Calculate min and max temperatures for today
+        today_temps = [float(record['external_temperature']) 
+                      for record in today_records 
+                      if 'external_temperature' in record 
+                      and record['external_temperature'] is not None]
+        
+        max_temp = round(max(today_temps), 1) if today_temps else None
+        min_temp = round(min(today_temps), 1) if today_temps else None
+
         live_data = {
             "external_temperature": get_meteohub_parameter("ext_temp"),
+            "max_temperature": max_temp,
+            "min_temperature": min_temp,
             "internal_temperature": get_meteohub_parameter("int_temp"),
             "humidity": get_meteohub_parameter("hum"),
             "wind_direction": get_meteohub_parameter("wind_dir"),
@@ -58,6 +81,7 @@ def live_weather():
     except Exception as e:
         logging.error(f"Error in live_weather endpoint: {e}")
         return jsonify({"error": "Internal server error"}), 500
+
 
 #-----------------------
 # api/meteo-data AP
