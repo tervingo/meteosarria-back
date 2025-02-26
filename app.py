@@ -17,9 +17,6 @@ AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
 BURGOS_STATION_ID = "2331"  # ID de la estación de Burgos/Villafría
 BASE_URL = "https://opendata.aemet.es/opendata/api"
 
-
-
-
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -290,72 +287,44 @@ def get_aemet_data(endpoint: str) -> Tuple[Dict[str, Any], int]:
         logger.error(f"Error al procesar JSON: {str(e)}")
         raise AEMETError(f"Error al procesar JSON: {str(e)}")
 
-@app.route('/api/burgos', methods=['GET'])
+# OpenWeatherMap API endpoint for Burgos
+@app.route('/api/burgos-weather')
 def get_burgos_weather():
-    """
-    Endpoint para obtener datos meteorológicos actuales de Burgos/Villafría
-    """
     try:
-        logger.info("Iniciando petición de datos de Burgos")
-        
-        if AEMET_API_KEY == "TU_API_KEY_AQUI":
-            logger.error("API key no configurada")
-            return jsonify({
-                'status': 'error',
-                'message': 'API key de AEMET no configurada'
-            }), 500
-        
-        # Obtener datos de la estación específica
-        endpoint = f"observacion/convencional/datos/estacion/{BURGOS_STATION_ID}"
-        raw_data, status_code = get_aemet_data(endpoint)
-        
-        logger.debug(f"Datos recibidos de AEMET: {raw_data}")
-        
-        if not raw_data:
-            return jsonify({
-                'status': 'error',
-                'message': 'No hay datos disponibles para la estación'
-            }), 404
-            
-        # Procesar datos - tomar la última medición
-        latest_data = raw_data[-1] if raw_data else None
-        
-        if not latest_data:
-            return jsonify({
-                'status': 'error',
-                'message': 'No hay datos recientes disponibles'
-            }), 404
-            
-        processed_data = {
-            'temperature': latest_data.get('ta'),  
-            'temperature_sup': latest_data.get('ts'),  
-            'humidity': latest_data.get('hr'),
-            'wind_speed': latest_data.get('vv'),
-            'wind_direction': latest_data.get('dv'),
-            'pressure': latest_data.get('pres'),
-            'timestamp': latest_data.get('fint'),
-            'station_name': 'Burgos/Villafría'
-        }
-        
-        return jsonify({
-            'status': 'success',
-            'data': processed_data,
-            'timestamp': datetime.utcnow().isoformat()
-        }), 200
-        
-    except AEMETError as e:
-        logger.error(f"Error de AEMET: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-    except Exception as e:
-        logger.error(f"Error inesperado: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'message': f"Error interno del servidor: {str(e)}"
-        }), 500
+        OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+        if not OPENWEATHER_API_KEY:
+            logger.error("OpenWeather API key not found in environment variables")
+            return jsonify({'error': 'API key not configured'}), 500
 
+        BURGOS_LAT = 42.3439
+        BURGOS_LON = -3.6970
+        
+        url = f'https://api.openweathermap.org/data/2.5/weather?lat={BURGOS_LAT}&lon={BURGOS_LON}&units=metric&appid={OPENWEATHER_API_KEY}&lang=es'
+        
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        weather_data = {
+            'temperature': data['main']['temp'],
+            'humidity': data['main']['humidity'],
+            'pressure': data['main']['pressure'],
+            'windSpeed': data['wind']['speed'] * 3.6,  # Convert m/s to km/h
+            'windDirection': data['wind']['deg'],
+            'description': data['weather'][0]['description'],
+            'icon': data['weather'][0]['icon'],
+            'timestamp': data['dt']
+        }
+
+        logger.debug(f"Successfully fetched Burgos weather data: {weather_data}")
+        return jsonify(weather_data)
+
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Error fetching Burgos weather data: {str(e)}")
+        return jsonify({'error': 'Failed to fetch weather data'}), 500
+    except Exception as e:
+        logger.error(f"Unexpected error in get_burgos_weather: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 #---------------------------
 # Debug
