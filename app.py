@@ -397,7 +397,7 @@ def get_barcelona_rain():
             today.replace(month=2, day=28),
             today.replace(month=2, day=27)
         ]
-        daily_rain = 0
+        daily_rain = 0.0  # Inicializar como float
         daily_data_found = False
         last_available_date = None
 
@@ -436,19 +436,23 @@ def get_barcelona_rain():
                 logger.debug(f"Received daily data: {daily_data}")
                 
                 if daily_data and len(daily_data) > 0:
-                    daily_rain = convert_spanish_decimal(daily_data[0].get('prec', 0))
-                    if daily_rain is not None:
+                    try:
+                        daily_rain = convert_spanish_decimal(daily_data[0].get('prec', '0,0'))
+                        logger.debug(f"Converted daily rain value: {daily_rain}")
                         daily_data_found = True
                         last_available_date = try_date
                         logger.info(f"Found valid daily rain data: {daily_rain} for date {try_date.strftime('%Y-%m-%d')}")
+                    except Exception as e:
+                        logger.error(f"Error converting daily rain value: {str(e)}")
+                        daily_rain = 0.0
             except Exception as e:
                 logger.warning(f"Error getting data for {try_date.strftime('%Y-%m-%d')}: {str(e)}")
                 continue
 
         # Obtener datos anuales (meses completos)
         yearly_endpoint = f"valores/climatologicos/mensualesanuales/datos/anioini/{today.year}/aniofin/{today.year}/estacion/{FABRA_STATION_ID}"
-        monthly_rain = 0
-        current_month_rain = 0
+        monthly_rain = 0.0  # Inicializar como float
+        current_month_rain = 0.0  # Inicializar como float
         
         try:
             logger.debug(f"Requesting yearly data from AEMET: {yearly_endpoint}")
@@ -541,10 +545,10 @@ def get_barcelona_rain():
             logger.warning(f"Error getting yearly data: {str(e)}")
         
         # Calcular el total anual: meses completos + mes actual hasta ayer + día actual
-        yearly_rain = monthly_rain + current_month_rain + (daily_rain or 0)
+        yearly_rain = monthly_rain + current_month_rain + daily_rain  # daily_rain ya es float
         
         response_data = {
-            'daily_rain': float(daily_rain or 0),
+            'daily_rain': daily_rain,  # Ya es float
             'yearly_rain': yearly_rain,
             'monthly_rain': monthly_rain,  # lluvia de meses completos
             'current_month_rain': current_month_rain,  # lluvia del mes actual hasta ayer
