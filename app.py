@@ -424,10 +424,14 @@ def get_barcelona_rain():
                 # Verificar si la respuesta indica un error
                 if response_json.get('estado') == 404:
                     logger.warning(f"AEMET returned 404 for date {try_date.strftime('%Y-%m-%d')}: {response_json.get('descripcion')}")
+                    logger.debug(f"Full response for failed request: {response_json}")
+                    logger.debug(f"Response headers: {daily_response.headers}")
+                    logger.debug(f"Response status code: {daily_response.status_code}")
                     continue
 
                 if not response_json.get('datos'):
                     logger.warning(f"No data URL in AEMET response for date {try_date.strftime('%Y-%m-%d')}")
+                    logger.debug(f"Full response without datos: {response_json}")
                     continue
 
                 daily_data_response = requests.get(response_json['datos'])
@@ -437,7 +441,9 @@ def get_barcelona_rain():
                 
                 if daily_data and len(daily_data) > 0:
                     try:
-                        daily_rain = convert_spanish_decimal(daily_data[0].get('prec', '0,0'))
+                        raw_prec = daily_data[0].get('prec', '0,0')
+                        logger.debug(f"Raw precipitation value: {raw_prec}")
+                        daily_rain = convert_spanish_decimal(raw_prec)
                         logger.debug(f"Converted daily rain value: {daily_rain}")
                         daily_data_found = True
                         last_available_date = try_date
