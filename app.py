@@ -17,6 +17,9 @@ AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
 BURGOS_STATION_ID = "2331"  # ID de la estación de Burgos/Villafría
 BASE_URL = "https://opendata.aemet.es/opendata/api"
 
+# Configuración para la API de AEMET
+FABRA_STATION_ID = "0200E"  # ID de la estación del Observatorio Fabra
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -371,6 +374,59 @@ def debug_last_records():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/barcelona-rain')
+def get_barcelona_rain():
+    try:
+        # Obtener fecha actual
+        today = datetime.now()
+        
+        # Endpoint para datos diarios
+        daily_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{today.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+        
+        # Endpoint para datos mensuales del año actual
+        yearly_endpoint = f"valores/climatologicos/mensualesanuales/datos/anioini/{today.year}/aniofin/{today.year}/estacion/{FABRA_STATION_ID}"
+        
+        headers = {
+            'api_key': AEMET_API_KEY,
+            'Accept': 'application/json'
+        }
+        
+        # Obtener datos diarios
+        daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers=headers)
+        daily_response.raise_for_status()
+        daily_data_url = daily_response.json().get('datos')
+        daily_data = requests.get(daily_data_url).json()
+        
+        # Obtener datos anuales
+        yearly_response = requests.get(f"{BASE_URL}/{yearly_endpoint}", headers=headers)
+        yearly_response.raise_for_status()
+        yearly_data_url = yearly_response.json().get('datos')
+        yearly_data = requests.get(yearly_data_url).json()
+        
+        # Procesar datos
+        daily_rain = 0
+        if daily_data and len(daily_data) > 0:
+            daily_rain = daily_data[0].get('prec', 0)
+        
+        yearly_rain = 0
+        if yearly_data and len(yearly_data) > 0:
+            # Sumar precipitación de todos los meses disponibles
+            yearly_rain = sum(float(month.get('p_mes', 0)) for month in yearly_data)
+        
+        return jsonify({
+            'daily_rain': daily_rain,
+            'yearly_rain': yearly_rain,
+            'station_name': 'Observatorio Fabra',
+            'station_id': FABRA_STATION_ID,
+            'timestamp': today.strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except requests.exceptions.RequestException as e:
+        app.logger.error(f"Error fetching rain data from AEMET: {str(e)}")
+        return jsonify({'error': 'Failed to fetch rain data'}), 500
+    except Exception as e:
+        app.logger.error(f"Unexpected error in get_barcelona_rain: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
