@@ -389,9 +389,14 @@ def get_barcelona_rain():
         madrid_tz = pytz.timezone('Europe/Madrid')
         today = datetime.now(madrid_tz)
         
-        # Para datos diarios, intentamos con el último día de febrero y el penúltimo
-        last_day_feb = today.replace(month=2, day=28)
-        dates_to_try = [last_day_feb, last_day_feb - timedelta(days=1)]
+        # Intentar con fechas de enero primero
+        dates_to_try = [
+            today.replace(month=1, day=31),
+            today.replace(month=1, day=30),
+            today.replace(month=1, day=15),
+            today.replace(month=2, day=28),
+            today.replace(month=2, day=27)
+        ]
         daily_rain = 0
         daily_data_found = False
         last_available_date = None
@@ -406,6 +411,8 @@ def get_barcelona_rain():
             
             try:
                 logger.debug(f"Requesting daily data from AEMET: {daily_endpoint}")
+                logger.debug(f"Using API key: {AEMET_API_KEY[:5]}...")  # Log solo los primeros 5 caracteres
+                
                 daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers={
                     'api_key': AEMET_API_KEY,
                     'Accept': 'application/json'
@@ -456,6 +463,29 @@ def get_barcelona_rain():
             # Verificar si la respuesta indica un error
             if yearly_response_json.get('estado') == 404:
                 logger.warning(f"AEMET returned 404 for yearly data: {yearly_response_json.get('descripcion')}")
+                # Intentar con una petición diaria para todo enero
+                try:
+                    jan_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.year}-01-01T00:00:00UTC/fechafin/{today.year}-01-31T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+                    logger.debug(f"Trying to get January data: {jan_endpoint}")
+                    jan_response = requests.get(f"{BASE_URL}/{jan_endpoint}", headers={
+                        'api_key': AEMET_API_KEY,
+                        'Accept': 'application/json'
+                    })
+                    jan_response.raise_for_status()
+                    jan_json = jan_response.json()
+                    logger.debug(f"January response: {jan_json}")
+                    
+                    if jan_json.get('datos'):
+                        jan_data_response = requests.get(jan_json['datos'])
+                        jan_data_response.raise_for_status()
+                        jan_data = jan_data_response.json()
+                        logger.debug(f"January data: {jan_data}")
+                        
+                        if jan_data:
+                            monthly_rain = sum(float(day.get('prec', 0) or 0) for day in jan_data)
+                            logger.info(f"Calculated January rain from daily data: {monthly_rain}")
+                except Exception as e:
+                    logger.warning(f"Error getting January data: {str(e)}")
             elif yearly_response_json.get('datos'):
                 yearly_data_response = requests.get(yearly_response_json['datos'])
                 yearly_data_response.raise_for_status()
