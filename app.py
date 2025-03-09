@@ -385,11 +385,15 @@ def get_barcelona_rain():
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
 
-        # Obtener fecha actual
-        today = datetime.now()
+        # Obtener fecha actual en zona horaria de Madrid
+        madrid_tz = pytz.timezone('Europe/Madrid')
+        today = datetime.now(madrid_tz)
         
-        # Endpoint para datos diarios
-        daily_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{today.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+        # Para datos diarios, usamos el día anterior para asegurar que hay datos
+        yesterday = today - timedelta(days=1)
+        
+        # Endpoint para datos diarios (usando el día anterior)
+        daily_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{yesterday.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{yesterday.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
         
         # Endpoint para datos mensuales del año actual
         yearly_endpoint = f"valores/climatologicos/mensualesanuales/datos/anioini/{today.year}/aniofin/{today.year}/estacion/{FABRA_STATION_ID}"
@@ -404,8 +408,12 @@ def get_barcelona_rain():
             # Obtener datos diarios
             daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers=headers)
             daily_response.raise_for_status()
-            daily_data_url = daily_response.json().get('datos')
+            response_json = daily_response.json()
+            logger.debug(f"AEMET daily response: {response_json}")
+            
+            daily_data_url = response_json.get('datos')
             if not daily_data_url:
+                logger.warning(f"No daily data URL in response: {response_json}")
                 raise ValueError("No daily data URL received from AEMET")
             
             daily_data_response = requests.get(daily_data_url)
