@@ -389,10 +389,12 @@ def get_barcelona_rain():
         madrid_tz = pytz.timezone('Europe/Madrid')
         today = datetime.now(madrid_tz)
         
-        # Para datos diarios, intentamos primero con el día actual, luego con el anterior si no hay datos
-        dates_to_try = [today, today - timedelta(days=1)]
+        # Para datos diarios, intentamos con el último día de febrero y el penúltimo
+        last_day_feb = today.replace(month=2, day=28)
+        dates_to_try = [last_day_feb, last_day_feb - timedelta(days=1)]
         daily_rain = 0
         daily_data_found = False
+        last_available_date = None
 
         for try_date in dates_to_try:
             if daily_data_found:
@@ -422,14 +424,16 @@ def get_barcelona_rain():
                         daily_rain = daily_data[0].get('prec', 0)
                         if daily_rain is not None:
                             daily_data_found = True
+                            last_available_date = try_date
                             logger.info(f"Found valid daily rain data: {daily_rain} for date {try_date.strftime('%Y-%m-%d')}")
             except Exception as e:
                 logger.warning(f"Error getting data for {try_date.strftime('%Y-%m-%d')}: {str(e)}")
                 continue
 
-        # Obtener datos anuales
+        # Obtener datos anuales (meses completos)
         yearly_endpoint = f"valores/climatologicos/mensualesanuales/datos/anioini/{today.year}/aniofin/{today.year}/estacion/{FABRA_STATION_ID}"
-        yearly_rain = 0
+        monthly_rain = 0
+        current_month_rain = 0
         
         try:
             logger.debug(f"Requesting yearly data from AEMET: {yearly_endpoint}")
@@ -448,19 +452,59 @@ def get_barcelona_rain():
                 
                 if yearly_data and len(yearly_data) > 0:
                     try:
-                        yearly_rain = sum(float(month.get('p_mes', 0) or 0) for month in yearly_data)
-                        logger.info(f"Calculated yearly rain: {yearly_rain}")
+                        # Sumar solo los meses completos (excluyendo el mes actual)
+                        monthly_rain = sum(
+                            float(month.get('p_mes', 0) or 0) 
+                            for month in yearly_data 
+                            if int(month.get('mes', 0)) < today.month
+                        )
+                        logger.info(f"Sum of complete months rain: {monthly_rain}")
+
+                        # Obtener la lluvia del mes actual
+                        if today.day > 1:  # Solo si no estamos en el primer día del mes
+                            # Calcular la lluvia del mes actual hasta ayer
+                            month_start = today.replace(day=1)
+                            yesterday = today - timedelta(days=1)
+                            
+                            current_month_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{month_start.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{yesterday.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+                            
+                            logger.debug(f"Requesting current month data from AEMET: {current_month_endpoint}")
+                            current_month_response = requests.get(f"{BASE_URL}/{current_month_endpoint}", headers={
+                                'api_key': AEMET_API_KEY,
+                                'Accept': 'application/json'
+                            })
+                            current_month_response.raise_for_status()
+                            current_month_json = current_month_response.json()
+                            
+                            if current_month_json.get('estado') != 404 and current_month_json.get('datos'):
+                                current_month_data_response = requests.get(current_month_json['datos'])
+                                current_month_data_response.raise_for_status()
+                                current_month_data = current_month_data_response.json()
+                                
+                                # Sumar todas las precipitaciones diarias del mes actual
+                                current_month_rain = sum(
+                                    float(day.get('prec', 0) or 0)
+                                    for day in current_month_data
+                                )
+                                logger.info(f"Current month rain (until yesterday): {current_month_rain}")
+                            
                     except (ValueError, TypeError) as e:
-                        logger.error(f"Error calculating yearly rain: {str(e)}")
+                        logger.error(f"Error calculating rain totals: {str(e)}")
         except Exception as e:
             logger.warning(f"Error getting yearly data: {str(e)}")
         
+        # Calcular el total anual: meses completos + mes actual hasta ayer + día actual
+        yearly_rain = monthly_rain + current_month_rain + float(daily_rain or 0)
+        
         response_data = {
             'daily_rain': float(daily_rain or 0),
-            'yearly_rain': float(yearly_rain),
+            'yearly_rain': yearly_rain,
+            'monthly_rain': monthly_rain,  # lluvia de meses completos
+            'current_month_rain': current_month_rain,  # lluvia del mes actual hasta ayer
             'station_name': 'Observatorio Fabra',
             'station_id': FABRA_STATION_ID,
-            'timestamp': today.strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': today.strftime('%Y-%m-%d %H:%M:%S'),
+            'last_available_date': last_available_date.strftime('%Y-%m-%d') if last_available_date else None
         }
         
         logger.info(f"Returning barcelona-rain data: {response_data}")
