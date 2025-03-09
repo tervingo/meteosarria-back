@@ -436,7 +436,7 @@ def get_barcelona_rain():
                 logger.debug(f"Received daily data: {daily_data}")
                 
                 if daily_data and len(daily_data) > 0:
-                    daily_rain = daily_data[0].get('prec', 0)
+                    daily_rain = convert_spanish_decimal(daily_data[0].get('prec', 0))
                     if daily_rain is not None:
                         daily_data_found = True
                         last_available_date = try_date
@@ -482,7 +482,7 @@ def get_barcelona_rain():
                         logger.debug(f"January data: {jan_data}")
                         
                         if jan_data:
-                            monthly_rain = sum(float(day.get('prec', 0) or 0) for day in jan_data)
+                            monthly_rain = sum(convert_spanish_decimal(day.get('prec', 0)) for day in jan_data)
                             logger.info(f"Calculated January rain from daily data: {monthly_rain}")
                 except Exception as e:
                     logger.warning(f"Error getting January data: {str(e)}")
@@ -496,7 +496,7 @@ def get_barcelona_rain():
                     try:
                         # Sumar solo los meses completos (excluyendo el mes actual)
                         monthly_rain = sum(
-                            float(month.get('p_mes', 0) or 0) 
+                            convert_spanish_decimal(month.get('p_mes', 0))
                             for month in yearly_data 
                             if int(month.get('mes', 0)) < today.month
                         )
@@ -527,7 +527,7 @@ def get_barcelona_rain():
                                 
                                 # Sumar todas las precipitaciones diarias del mes actual
                                 current_month_rain = sum(
-                                    float(day.get('prec', 0) or 0)
+                                    convert_spanish_decimal(day.get('prec', 0))
                                     for day in current_month_data
                                 )
                                 logger.info(f"Current month rain (until yesterday): {current_month_rain}")
@@ -541,7 +541,7 @@ def get_barcelona_rain():
             logger.warning(f"Error getting yearly data: {str(e)}")
         
         # Calcular el total anual: meses completos + mes actual hasta ayer + día actual
-        yearly_rain = monthly_rain + current_month_rain + float(daily_rain or 0)
+        yearly_rain = monthly_rain + current_month_rain + (daily_rain or 0)
         
         response_data = {
             'daily_rain': float(daily_rain or 0),
@@ -561,6 +561,16 @@ def get_barcelona_rain():
         error_msg = f"Unexpected error in get_barcelona_rain: {str(e)}"
         logger.error(error_msg, exc_info=True)
         return jsonify({'error': error_msg}), 500
+
+def convert_spanish_decimal(value: str) -> float:
+    """Convierte un número en formato español (con coma decimal) a float."""
+    try:
+        if value is None:
+            return 0.0
+        # Reemplazar coma por punto y convertir a float
+        return float(str(value).replace(',', '.'))
+    except (ValueError, TypeError):
+        return 0.0
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
