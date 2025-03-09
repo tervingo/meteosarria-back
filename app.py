@@ -389,13 +389,14 @@ def get_barcelona_rain():
         madrid_tz = pytz.timezone('Europe/Madrid')
         today = datetime.now(madrid_tz)
         
-        # Intentar con fechas de enero primero
+        # Intentar con fechas recientes primero
+        yesterday = today - timedelta(days=1)
         dates_to_try = [
-            today.replace(month=1, day=31),
-            today.replace(month=1, day=30),
-            today.replace(month=1, day=15),
-            today.replace(month=2, day=28),
-            today.replace(month=2, day=27)
+            yesterday,  # Ayer
+            yesterday - timedelta(days=1),  # Anteayer
+            yesterday - timedelta(days=2),  # Hace 3 días
+            yesterday - timedelta(days=3),  # Hace 4 días
+            yesterday - timedelta(days=4),  # Hace 5 días
         ]
         daily_rain = 0.0  # Inicializar como float
         daily_data_found = False
