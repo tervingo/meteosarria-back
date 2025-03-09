@@ -378,6 +378,13 @@ def debug_last_records():
 def get_barcelona_rain():
     try:
         logger.info("barcelona-rain endpoint called")
+        
+        # Verificar API key
+        if not AEMET_API_KEY or AEMET_API_KEY == "TU_API_KEY_AQUI":
+            error_msg = "AEMET API key not configured"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+
         # Obtener fecha actual
         today = datetime.now()
         
@@ -392,31 +399,57 @@ def get_barcelona_rain():
             'Accept': 'application/json'
         }
         
-        logger.debug(f"Requesting daily data from AEMET: {daily_endpoint}")
-        # Obtener datos diarios
-        daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers=headers)
-        daily_response.raise_for_status()
-        daily_data_url = daily_response.json().get('datos')
-        daily_data = requests.get(daily_data_url).json()
-        logger.debug(f"Received daily data: {daily_data}")
-        
-        logger.debug(f"Requesting yearly data from AEMET: {yearly_endpoint}")
-        # Obtener datos anuales
-        yearly_response = requests.get(f"{BASE_URL}/{yearly_endpoint}", headers=headers)
-        yearly_response.raise_for_status()
-        yearly_data_url = yearly_response.json().get('datos')
-        yearly_data = requests.get(yearly_data_url).json()
-        logger.debug(f"Received yearly data: {yearly_data}")
+        try:
+            logger.debug(f"Requesting daily data from AEMET: {daily_endpoint}")
+            # Obtener datos diarios
+            daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers=headers)
+            daily_response.raise_for_status()
+            daily_data_url = daily_response.json().get('datos')
+            if not daily_data_url:
+                raise ValueError("No daily data URL received from AEMET")
+            
+            daily_data_response = requests.get(daily_data_url)
+            daily_data_response.raise_for_status()
+            daily_data = daily_data_response.json()
+            logger.debug(f"Received daily data: {daily_data}")
+            
+            logger.debug(f"Requesting yearly data from AEMET: {yearly_endpoint}")
+            # Obtener datos anuales
+            yearly_response = requests.get(f"{BASE_URL}/{yearly_endpoint}", headers=headers)
+            yearly_response.raise_for_status()
+            yearly_data_url = yearly_response.json().get('datos')
+            if not yearly_data_url:
+                raise ValueError("No yearly data URL received from AEMET")
+            
+            yearly_data_response = requests.get(yearly_data_url)
+            yearly_data_response.raise_for_status()
+            yearly_data = yearly_data_response.json()
+            logger.debug(f"Received yearly data: {yearly_data}")
+            
+        except requests.exceptions.RequestException as e:
+            error_msg = f"Error in AEMET API request: {str(e)}"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+        except ValueError as e:
+            error_msg = f"Error processing AEMET response: {str(e)}"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
         
         # Procesar datos
         daily_rain = 0
         if daily_data and len(daily_data) > 0:
             daily_rain = daily_data[0].get('prec', 0)
+            if daily_rain is None:
+                daily_rain = 0
         
         yearly_rain = 0
         if yearly_data and len(yearly_data) > 0:
             # Sumar precipitación de todos los meses disponibles
-            yearly_rain = sum(float(month.get('p_mes', 0) or 0) for month in yearly_data)
+            try:
+                yearly_rain = sum(float(month.get('p_mes', 0) or 0) for month in yearly_data)
+            except (ValueError, TypeError) as e:
+                logger.error(f"Error calculating yearly rain: {str(e)}")
+                yearly_rain = 0
         
         response_data = {
             'daily_rain': float(daily_rain or 0),
@@ -429,12 +462,10 @@ def get_barcelona_rain():
         logger.info(f"Returning barcelona-rain data: {response_data}")
         return jsonify(response_data)
         
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error fetching rain data from AEMET: {str(e)}")
-        return jsonify({'error': 'Failed to fetch rain data'}), 500
     except Exception as e:
-        logger.error(f"Unexpected error in get_barcelona_rain: {str(e)}", exc_info=True)
-        return jsonify({'error': 'Internal server error'}), 500
+        error_msg = f"Unexpected error in get_barcelona_rain: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        return jsonify({'error': error_msg}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
