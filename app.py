@@ -440,6 +440,11 @@ def get_barcelona_rain():
                 daily_data = daily_data_response.json()
                 logger.debug(f"Received daily data: {daily_data}")
                 
+                # Verificar si la respuesta es un error
+                if isinstance(daily_data, dict) and daily_data.get('estado') == 404:
+                    logger.warning(f"Second request returned 404 for date {try_date.strftime('%Y-%m-%d')}")
+                    continue
+                
                 if daily_data and len(daily_data) > 0:
                     try:
                         raw_prec = daily_data[0].get('prec', '0,0')
@@ -536,12 +541,20 @@ def get_barcelona_rain():
                                 current_month_data = current_month_data_response.json()
                                 logger.debug(f"Received current month data: {current_month_data}")
                                 
-                                # Sumar todas las precipitaciones diarias del mes actual
-                                current_month_rain = sum(
-                                    convert_spanish_decimal(day.get('prec', 0))
-                                    for day in current_month_data
-                                )
-                                logger.info(f"Current month rain (until yesterday): {current_month_rain}")
+                                # Verificar si la respuesta es un error
+                                if isinstance(current_month_data, dict) and current_month_data.get('estado') == 404:
+                                    logger.warning("Second request for current month returned 404")
+                                    current_month_rain = 0.0
+                                elif current_month_data and isinstance(current_month_data, list):
+                                    # Sumar todas las precipitaciones diarias del mes actual
+                                    current_month_rain = sum(
+                                        convert_spanish_decimal(day.get('prec', '0,0'))
+                                        for day in current_month_data
+                                    )
+                                    logger.info(f"Current month rain (until yesterday): {current_month_rain}")
+                                else:
+                                    logger.warning("Invalid format for current month data")
+                                    current_month_rain = 0.0
                             else:
                                 logger.warning("No data available for current month")
                     except (ValueError, TypeError) as e:
