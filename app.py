@@ -479,29 +479,44 @@ def get_barcelona_rain():
             # Verificar si la respuesta indica un error
             if yearly_response_json.get('estado') == 404:
                 logger.warning(f"AEMET returned 404 for yearly data: {yearly_response_json.get('descripcion')}")
-                # Intentar con una petición diaria para todo enero
-                try:
-                    jan_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.year}-01-01T00:00:00UTC/fechafin/{today.year}-01-31T23:59:59UTC/estacion/{FABRA_STATION_ID}"
-                    logger.debug(f"Trying to get January data: {jan_endpoint}")
-                    jan_response = requests.get(f"{BASE_URL}/{jan_endpoint}", headers={
-                        'api_key': AEMET_API_KEY,
-                        'Accept': 'application/json'
-                    })
-                    jan_response.raise_for_status()
-                    jan_json = jan_response.json()
-                    logger.debug(f"January response: {jan_json}")
-                    
-                    if jan_json.get('datos'):
-                        jan_data_response = requests.get(jan_json['datos'])
-                        jan_data_response.raise_for_status()
-                        jan_data = jan_data_response.json()
-                        logger.debug(f"January data: {jan_data}")
+                # Intentar obtener datos mes a mes hasta el mes actual
+                monthly_rain = 0.0
+                for month in range(1, today.month):  # Hasta el mes actual (exclusive)
+                    try:
+                        # Obtener el último día del mes
+                        if month == 2:
+                            last_day = 29 if today.year % 4 == 0 else 28
+                        elif month in [4, 6, 9, 11]:
+                            last_day = 30
+                        else:
+                            last_day = 31
+                            
+                        month_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.year}-{month:02d}-01T00:00:00UTC/fechafin/{today.year}-{month:02d}-{last_day}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+                        logger.debug(f"Trying to get data for month {month}: {month_endpoint}")
+                        month_response = requests.get(f"{BASE_URL}/{month_endpoint}", headers={
+                            'api_key': AEMET_API_KEY,
+                            'Accept': 'application/json'
+                        })
+                        month_response.raise_for_status()
+                        month_json = month_response.json()
+                        logger.debug(f"Month {month} response: {month_json}")
                         
-                        if jan_data:
-                            monthly_rain = sum(convert_spanish_decimal(day.get('prec', 0)) for day in jan_data)
-                            logger.info(f"Calculated January rain from daily data: {monthly_rain}")
-                except Exception as e:
-                    logger.warning(f"Error getting January data: {str(e)}")
+                        if month_json.get('datos'):
+                            month_data_response = requests.get(month_json['datos'])
+                            month_data_response.raise_for_status()
+                            month_data = month_data_response.json()
+                            
+                            if isinstance(month_data, dict) and month_data.get('estado') == 404:
+                                logger.warning(f"Second request for month {month} returned 404")
+                                continue
+                                
+                            if month_data and isinstance(month_data, list):
+                                month_total = sum(convert_spanish_decimal(day.get('prec', '0,0')) for day in month_data)
+                                monthly_rain += month_total
+                                logger.info(f"Added {month_total}mm from month {month}, accumulated: {monthly_rain}mm")
+                    except Exception as e:
+                        logger.warning(f"Error getting data for month {month}: {str(e)}")
+                        continue
             elif yearly_response_json.get('datos'):
                 yearly_data_response = requests.get(yearly_response_json['datos'])
                 yearly_data_response.raise_for_status()
