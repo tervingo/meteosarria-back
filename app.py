@@ -414,18 +414,26 @@ def get_barcelona_rain():
                 response_json = daily_response.json()
                 logger.debug(f"AEMET daily response: {response_json}")
                 
-                if response_json.get('estado') != 404 and response_json.get('datos'):
-                    daily_data_response = requests.get(response_json['datos'])
-                    daily_data_response.raise_for_status()
-                    daily_data = daily_data_response.json()
-                    logger.debug(f"Received daily data: {daily_data}")
-                    
-                    if daily_data and len(daily_data) > 0:
-                        daily_rain = daily_data[0].get('prec', 0)
-                        if daily_rain is not None:
-                            daily_data_found = True
-                            last_available_date = try_date
-                            logger.info(f"Found valid daily rain data: {daily_rain} for date {try_date.strftime('%Y-%m-%d')}")
+                # Verificar si la respuesta indica un error
+                if response_json.get('estado') == 404:
+                    logger.warning(f"AEMET returned 404 for date {try_date.strftime('%Y-%m-%d')}: {response_json.get('descripcion')}")
+                    continue
+
+                if not response_json.get('datos'):
+                    logger.warning(f"No data URL in AEMET response for date {try_date.strftime('%Y-%m-%d')}")
+                    continue
+
+                daily_data_response = requests.get(response_json['datos'])
+                daily_data_response.raise_for_status()
+                daily_data = daily_data_response.json()
+                logger.debug(f"Received daily data: {daily_data}")
+                
+                if daily_data and len(daily_data) > 0:
+                    daily_rain = daily_data[0].get('prec', 0)
+                    if daily_rain is not None:
+                        daily_data_found = True
+                        last_available_date = try_date
+                        logger.info(f"Found valid daily rain data: {daily_rain} for date {try_date.strftime('%Y-%m-%d')}")
             except Exception as e:
                 logger.warning(f"Error getting data for {try_date.strftime('%Y-%m-%d')}: {str(e)}")
                 continue
@@ -443,8 +451,12 @@ def get_barcelona_rain():
             })
             yearly_response.raise_for_status()
             yearly_response_json = yearly_response.json()
+            logger.debug(f"AEMET yearly response: {yearly_response_json}")
             
-            if yearly_response_json.get('estado') != 404 and yearly_response_json.get('datos'):
+            # Verificar si la respuesta indica un error
+            if yearly_response_json.get('estado') == 404:
+                logger.warning(f"AEMET returned 404 for yearly data: {yearly_response_json.get('descripcion')}")
+            elif yearly_response_json.get('datos'):
                 yearly_data_response = requests.get(yearly_response_json['datos'])
                 yearly_data_response.raise_for_status()
                 yearly_data = yearly_data_response.json()
@@ -475,11 +487,13 @@ def get_barcelona_rain():
                             })
                             current_month_response.raise_for_status()
                             current_month_json = current_month_response.json()
+                            logger.debug(f"AEMET current month response: {current_month_json}")
                             
                             if current_month_json.get('estado') != 404 and current_month_json.get('datos'):
                                 current_month_data_response = requests.get(current_month_json['datos'])
                                 current_month_data_response.raise_for_status()
                                 current_month_data = current_month_data_response.json()
+                                logger.debug(f"Received current month data: {current_month_data}")
                                 
                                 # Sumar todas las precipitaciones diarias del mes actual
                                 current_month_rain = sum(
@@ -487,9 +501,12 @@ def get_barcelona_rain():
                                     for day in current_month_data
                                 )
                                 logger.info(f"Current month rain (until yesterday): {current_month_rain}")
-                            
+                            else:
+                                logger.warning("No data available for current month")
                     except (ValueError, TypeError) as e:
                         logger.error(f"Error calculating rain totals: {str(e)}")
+            else:
+                logger.warning("No data URL in AEMET yearly response")
         except Exception as e:
             logger.warning(f"Error getting yearly data: {str(e)}")
         
