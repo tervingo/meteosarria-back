@@ -386,7 +386,7 @@ def get_barcelona_rain():
         
         # Verificar API key
         logger.debug(f"Checking Meteocat API key configuration...")
-        if not METEOCAT_API_KEY:
+        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "TU_API_KEY_AQUI":
             error_msg = "Meteocat API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
@@ -398,9 +398,10 @@ def get_barcelona_rain():
         
         # Headers para la API de Meteocat
         headers = {
-            'Authorization': f'Bearer {METEOCAT_API_KEY}',
+            'X-API-KEY': METEOCAT_API_KEY,
             'Accept': 'application/json'
         }
+        logger.debug(f"Using headers: {headers}")
 
         # Obtener datos del día actual
         daily_rain = 0.0
@@ -422,6 +423,7 @@ def get_barcelona_rain():
                 response = requests.get(daily_endpoint, headers=headers)
                 logger.debug(f"Response status code: {response.status_code}")
                 logger.debug(f"Response headers: {response.headers}")
+                logger.debug(f"Request headers sent: {response.request.headers}")
                 
                 if response.status_code != 200:
                     logger.warning(f"Received non-200 status code: {response.status_code}")
@@ -465,6 +467,7 @@ def get_barcelona_rain():
             
             response = requests.get(monthly_endpoint, headers=headers)
             logger.debug(f"Monthly data response status code: {response.status_code}")
+            logger.debug(f"Request headers sent for monthly data: {response.request.headers}")
             
             if response.status_code != 200:
                 logger.warning(f"Monthly data response error: {response.text}")
@@ -487,6 +490,7 @@ def get_barcelona_rain():
                 
                 response = requests.get(current_month_endpoint, headers=headers)
                 logger.debug(f"Current month data response status code: {response.status_code}")
+                logger.debug(f"Request headers sent for current month data: {response.request.headers}")
                 
                 if response.status_code != 200:
                     logger.warning(f"Current month data response error: {response.text}")
