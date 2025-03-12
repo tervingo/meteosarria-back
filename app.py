@@ -22,7 +22,7 @@ FABRA_STATION_ID = "0200E"  # ID de la estación del Observatorio Fabra
 
 # Configuración para la API de Meteocat
 METEOCAT_API_KEY = os.getenv('METEOCAT_API_KEY', "TU_API_KEY_AQUI")
-METEOCAT_BASE_URL = "https://api.meteo.cat/xema/v1"
+METEOCAT_BASE_URL = "https://api.meteo.cat/referencia/v1"
 FABRA_METEOCAT_ID = "X4"  # ID de la estación del Observatorio Fabra en Meteocat
 
 # Configure logging
@@ -398,8 +398,8 @@ def get_barcelona_rain():
         
         # Headers para la API de Meteocat
         headers = {
-            "api-key": METEOCAT_API_KEY,
-            "Content-Type": "application/json"
+            'X-Api-Key': METEOCAT_API_KEY,
+            'Content-Type': 'application/json'
         }
         logger.debug(f"Using headers: {headers}")
 
@@ -416,7 +416,7 @@ def get_barcelona_rain():
             logger.debug(f"Trying to get data for date: {date_str}")
 
             # Endpoint para datos diarios
-            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{date_str}"
+            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/dades/{FABRA_METEOCAT_ID}/{date_str}"
             
             try:
                 logger.debug(f"Requesting data from Meteocat: {daily_endpoint}")
@@ -462,7 +462,7 @@ def get_barcelona_rain():
             start_date = today.replace(month=1, day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
             end_date = (today.replace(day=1) - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
             
-            monthly_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{start_date}/{end_date}"
+            monthly_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesures/{FABRA_METEOCAT_ID}/35/{start_date}/{end_date}"
             logger.debug(f"Requesting monthly data from Meteocat: {monthly_endpoint}")
             
             response = requests.get(monthly_endpoint, headers=headers)
@@ -485,7 +485,7 @@ def get_barcelona_rain():
                 current_month_start = today.replace(day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
                 current_month_end = (today - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
                 
-                current_month_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{current_month_start}/{current_month_end}"
+                current_month_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesures/{FABRA_METEOCAT_ID}/35/{current_month_start}/{current_month_end}"
                 logger.debug(f"Requesting current month data from Meteocat: {current_month_endpoint}")
                 
                 response = requests.get(current_month_endpoint, headers=headers)
