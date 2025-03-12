@@ -20,6 +20,11 @@ BASE_URL = "https://opendata.aemet.es/opendata/api"
 # Configuración para la API de AEMET
 FABRA_STATION_ID = "0200E"  # ID de la estación del Observatorio Fabra
 
+# Configuración para la API de Meteocat
+METEOCAT_API_KEY = os.getenv('METEOCAT_API_KEY', "TU_API_KEY_AQUI")
+METEOCAT_BASE_URL = "https://api.meteo.cat/xema/v1"
+FABRA_METEOCAT_ID = "X4"  # ID de la estación del Observatorio Fabra en Meteocat
+
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -380,215 +385,114 @@ def get_barcelona_rain():
         logger.info("barcelona-rain endpoint called")
         
         # Verificar API key
-        if not AEMET_API_KEY or AEMET_API_KEY == "TU_API_KEY_AQUI":
-            error_msg = "AEMET API key not configured"
+        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "TU_API_KEY_AQUI":
+            error_msg = "Meteocat API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
 
-        # Obtener fecha actual en zona horaria de Madrid
-        madrid_tz = pytz.timezone('Europe/Madrid')
-        today = datetime.now(madrid_tz)
+        # Obtener fecha actual en zona horaria de Barcelona
+        barcelona_tz = pytz.timezone('Europe/Madrid')
+        today = datetime.now(barcelona_tz)
         
-        # Intentar con fechas recientes primero
-        yesterday = today - timedelta(days=1)
-        dates_to_try = [
-            yesterday,  # Ayer
-            yesterday - timedelta(days=1),  # Anteayer
-            yesterday - timedelta(days=2),  # Hace 3 días
-            yesterday - timedelta(days=3),  # Hace 4 días
-            yesterday - timedelta(days=4),  # Hace 5 días
-        ]
-        daily_rain = 0.0  # Inicializar como float
-        daily_data_found = False
+        # Headers para la API de Meteocat
+        headers = {
+            'X-API-KEY': METEOCAT_API_KEY,
+            'Accept': 'application/json'
+        }
+
+        # Obtener datos del día actual
+        daily_rain = 0.0
         last_available_date = None
 
-        for try_date in dates_to_try:
-            if daily_data_found:
-                break
-
-            logger.debug(f"Trying date: {try_date.strftime('%Y-%m-%d')} for daily data")
+        # Intentar obtener datos de los últimos días
+        for days_back in range(1, 6):  # Intentar hasta 5 días atrás
+            try_date = today - timedelta(days=days_back)
             
-            daily_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{try_date.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{try_date.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
+            # Formato de fecha para Meteocat: AAAA-MM-DD
+            date_str = try_date.strftime('%Y-%m-%d')
+            logger.debug(f"Trying to get data for date: {date_str}")
+
+            # Endpoint para datos diarios
+            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{date_str}"
             
             try:
-                logger.debug(f"Requesting daily data from AEMET: {daily_endpoint}")
-                logger.debug(f"Using API key: {AEMET_API_KEY[:5]}...")  # Log solo los primeros 5 caracteres
+                logger.debug(f"Requesting data from Meteocat: {daily_endpoint}")
+                response = requests.get(daily_endpoint, headers=headers)
+                response.raise_for_status()
+                data = response.json()
                 
-                daily_response = requests.get(f"{BASE_URL}/{daily_endpoint}", headers={
-                    'api_key': AEMET_API_KEY,
-                    'Accept': 'application/json'
-                })
-                daily_response.raise_for_status()
-                response_json = daily_response.json()
-                logger.debug(f"AEMET daily response: {response_json}")
-                
-                # Verificar si la respuesta indica un error
-                if response_json.get('estado') == 404:
-                    logger.warning(f"AEMET returned 404 for date {try_date.strftime('%Y-%m-%d')}: {response_json.get('descripcion')}")
-                    logger.debug(f"Full response for failed request: {response_json}")
-                    logger.debug(f"Response headers: {daily_response.headers}")
-                    logger.debug(f"Response status code: {daily_response.status_code}")
-                    continue
-
-                if not response_json.get('datos'):
-                    logger.warning(f"No data URL in AEMET response for date {try_date.strftime('%Y-%m-%d')}")
-                    logger.debug(f"Full response without datos: {response_json}")
-                    continue
-
-                daily_data_response = requests.get(response_json['datos'])
-                daily_data_response.raise_for_status()
-                daily_data = daily_data_response.json()
-                logger.debug(f"Received daily data: {daily_data}")
-                
-                # Verificar si la respuesta es un error
-                if isinstance(daily_data, dict) and daily_data.get('estado') == 404:
-                    logger.warning(f"Second request returned 404 for date {try_date.strftime('%Y-%m-%d')}")
-                    continue
-                
-                if daily_data and len(daily_data) > 0:
-                    try:
-                        raw_prec = daily_data[0].get('prec', '0,0')
-                        logger.debug(f"Raw precipitation value: {raw_prec}")
-                        daily_rain = convert_spanish_decimal(raw_prec)
-                        logger.debug(f"Converted daily rain value: {daily_rain}")
-                        daily_data_found = True
-                        last_available_date = try_date
-                        logger.info(f"Found valid daily rain data: {daily_rain} for date {try_date.strftime('%Y-%m-%d')}")
-                    except Exception as e:
-                        logger.error(f"Error converting daily rain value: {str(e)}")
-                        daily_rain = 0.0
-            except Exception as e:
-                logger.warning(f"Error getting data for {try_date.strftime('%Y-%m-%d')}: {str(e)}")
+                # Buscar las medidas de precipitación (variable 35)
+                if 'variables' in data:
+                    for variable in data['variables']:
+                        if variable['codi'] == 35:  # Código para precipitación
+                            # Sumar todas las lecturas del día
+                            daily_rain = sum(float(lectura['valor']) for lectura in variable['lectures'] if lectura['valor'] is not None)
+                            last_available_date = try_date
+                            logger.info(f"Found valid rain data: {daily_rain}mm for date {date_str}")
+                            break
+                    
+                    if last_available_date:
+                        break  # Si encontramos datos válidos, salimos del bucle
+                        
+            except requests.exceptions.RequestException as e:
+                logger.warning(f"Error getting data for {date_str}: {str(e)}")
+                continue
+            except (ValueError, KeyError) as e:
+                logger.warning(f"Error processing data for {date_str}: {str(e)}")
                 continue
 
-        # Obtener datos anuales (meses completos)
-        yearly_endpoint = f"valores/climatologicos/mensualesanuales/datos/anioini/{today.year}/aniofin/{today.year}/estacion/{FABRA_STATION_ID}"
-        monthly_rain = 0.0  # Inicializar como float
-        current_month_rain = 0.0  # Inicializar como float
+        # Obtener datos mensuales del año actual
+        monthly_rain = 0.0
+        current_month_rain = 0.0
         
         try:
-            logger.debug(f"Requesting yearly data from AEMET: {yearly_endpoint}")
-            yearly_response = requests.get(f"{BASE_URL}/{yearly_endpoint}", headers={
-                'api_key': AEMET_API_KEY,
-                'Accept': 'application/json'
-            })
-            yearly_response.raise_for_status()
-            yearly_response_json = yearly_response.json()
-            logger.debug(f"AEMET yearly response: {yearly_response_json}")
+            # Obtener datos desde el inicio del año hasta el mes anterior
+            start_date = today.replace(month=1, day=1).strftime('%Y-%m-%d')
+            end_date = (today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')
             
-            # Verificar si la respuesta indica un error
-            if yearly_response_json.get('estado') == 404:
-                logger.warning(f"AEMET returned 404 for yearly data: {yearly_response_json.get('descripcion')}")
-                # Intentar obtener datos mes a mes hasta el mes actual
-                monthly_rain = 0.0
-                for month in range(1, today.month):  # Hasta el mes actual (exclusive)
-                    try:
-                        # Obtener el último día del mes
-                        if month == 2:
-                            last_day = 29 if today.year % 4 == 0 else 28
-                        elif month in [4, 6, 9, 11]:
-                            last_day = 30
-                        else:
-                            last_day = 31
-                            
-                        month_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{today.year}-{month:02d}-01T00:00:00UTC/fechafin/{today.year}-{month:02d}-{last_day}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
-                        logger.debug(f"Trying to get data for month {month}: {month_endpoint}")
-                        month_response = requests.get(f"{BASE_URL}/{month_endpoint}", headers={
-                            'api_key': AEMET_API_KEY,
-                            'Accept': 'application/json'
-                        })
-                        month_response.raise_for_status()
-                        month_json = month_response.json()
-                        logger.debug(f"Month {month} response: {month_json}")
-                        
-                        if month_json.get('datos'):
-                            month_data_response = requests.get(month_json['datos'])
-                            month_data_response.raise_for_status()
-                            month_data = month_data_response.json()
-                            
-                            if isinstance(month_data, dict) and month_data.get('estado') == 404:
-                                logger.warning(f"Second request for month {month} returned 404")
-                                continue
-                                
-                            if month_data and isinstance(month_data, list):
-                                month_total = sum(convert_spanish_decimal(day.get('prec', '0,0')) for day in month_data)
-                                monthly_rain += month_total
-                                logger.info(f"Added {month_total}mm from month {month}, accumulated: {monthly_rain}mm")
-                    except Exception as e:
-                        logger.warning(f"Error getting data for month {month}: {str(e)}")
-                        continue
-            elif yearly_response_json.get('datos'):
-                yearly_data_response = requests.get(yearly_response_json['datos'])
-                yearly_data_response.raise_for_status()
-                yearly_data = yearly_data_response.json()
-                logger.debug(f"Received yearly data: {yearly_data}")
+            monthly_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{start_date}/{end_date}"
+            logger.debug(f"Requesting monthly data from Meteocat: {monthly_endpoint}")
+            
+            response = requests.get(monthly_endpoint, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Sumar todas las lecturas hasta el mes anterior
+            if 'lectures' in data:
+                monthly_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
+                logger.info(f"Total rain for complete months: {monthly_rain}mm")
+            
+            # Obtener datos del mes actual
+            if today.day > 1:
+                current_month_start = today.replace(day=1).strftime('%Y-%m-%d')
+                current_month_end = (today - timedelta(days=1)).strftime('%Y-%m-%d')
                 
-                if yearly_data and len(yearly_data) > 0:
-                    try:
-                        # Sumar solo los meses completos (excluyendo el mes actual)
-                        monthly_rain = sum(
-                            convert_spanish_decimal(month.get('p_mes', 0))
-                            for month in yearly_data 
-                            if int(month.get('mes', 0)) < today.month
-                        )
-                        logger.info(f"Sum of complete months rain: {monthly_rain}")
+                current_month_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{current_month_start}/{current_month_end}"
+                logger.debug(f"Requesting current month data from Meteocat: {current_month_endpoint}")
+                
+                response = requests.get(current_month_endpoint, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'lectures' in data:
+                    current_month_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
+                    logger.info(f"Current month rain: {current_month_rain}mm")
+                
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Error getting monthly data: {str(e)}")
+        except (ValueError, KeyError) as e:
+            logger.warning(f"Error processing monthly data: {str(e)}")
 
-                        # Obtener la lluvia del mes actual
-                        if today.day > 1:  # Solo si no estamos en el primer día del mes
-                            # Calcular la lluvia del mes actual hasta ayer
-                            month_start = today.replace(day=1)
-                            yesterday = today - timedelta(days=1)
-                            
-                            current_month_endpoint = f"valores/climatologicos/diarios/datos/fechaini/{month_start.strftime('%Y-%m-%d')}T00:00:00UTC/fechafin/{yesterday.strftime('%Y-%m-%d')}T23:59:59UTC/estacion/{FABRA_STATION_ID}"
-                            
-                            logger.debug(f"Requesting current month data from AEMET: {current_month_endpoint}")
-                            current_month_response = requests.get(f"{BASE_URL}/{current_month_endpoint}", headers={
-                                'api_key': AEMET_API_KEY,
-                                'Accept': 'application/json'
-                            })
-                            current_month_response.raise_for_status()
-                            current_month_json = current_month_response.json()
-                            logger.debug(f"AEMET current month response: {current_month_json}")
-                            
-                            if current_month_json.get('estado') != 404 and current_month_json.get('datos'):
-                                current_month_data_response = requests.get(current_month_json['datos'])
-                                current_month_data_response.raise_for_status()
-                                current_month_data = current_month_data_response.json()
-                                logger.debug(f"Received current month data: {current_month_data}")
-                                
-                                # Verificar si la respuesta es un error
-                                if isinstance(current_month_data, dict) and current_month_data.get('estado') == 404:
-                                    logger.warning("Second request for current month returned 404")
-                                    current_month_rain = 0.0
-                                elif current_month_data and isinstance(current_month_data, list):
-                                    # Sumar todas las precipitaciones diarias del mes actual
-                                    current_month_rain = sum(
-                                        convert_spanish_decimal(day.get('prec', '0,0'))
-                                        for day in current_month_data
-                                    )
-                                    logger.info(f"Current month rain (until yesterday): {current_month_rain}")
-                                else:
-                                    logger.warning("Invalid format for current month data")
-                                    current_month_rain = 0.0
-                            else:
-                                logger.warning("No data available for current month")
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"Error calculating rain totals: {str(e)}")
-            else:
-                logger.warning("No data URL in AEMET yearly response")
-        except Exception as e:
-            logger.warning(f"Error getting yearly data: {str(e)}")
-        
-        # Calcular el total anual: meses completos + mes actual hasta ayer + día actual
-        yearly_rain = monthly_rain + current_month_rain + daily_rain  # daily_rain ya es float
+        # Calcular el total anual
+        yearly_rain = monthly_rain + current_month_rain + daily_rain
         
         response_data = {
-            'daily_rain': daily_rain,  # Ya es float
+            'daily_rain': daily_rain,
             'yearly_rain': yearly_rain,
-            'monthly_rain': monthly_rain,  # lluvia de meses completos
-            'current_month_rain': current_month_rain,  # lluvia del mes actual hasta ayer
+            'monthly_rain': monthly_rain,
+            'current_month_rain': current_month_rain,
             'station_name': 'Observatorio Fabra',
-            'station_id': FABRA_STATION_ID,
+            'station_id': FABRA_METEOCAT_ID,
             'timestamp': today.strftime('%Y-%m-%d %H:%M:%S'),
             'last_available_date': last_available_date.strftime('%Y-%m-%d') if last_available_date else None
         }
