@@ -385,7 +385,8 @@ def get_barcelona_rain():
         logger.info("barcelona-rain endpoint called")
         
         # Verificar API key
-        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "d15t0xP0P17bLjSpV7Ecd9snECW0ivtEpWIBpXxf":
+        logger.debug(f"Checking Meteocat API key configuration...")
+        if not METEOCAT_API_KEY:
             error_msg = "Meteocat API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
@@ -393,6 +394,7 @@ def get_barcelona_rain():
         # Obtener fecha actual en zona horaria de Barcelona
         barcelona_tz = pytz.timezone('Europe/Madrid')
         today = datetime.now(barcelona_tz)
+        logger.debug(f"Current date in Barcelona timezone: {today}")
         
         # Headers para la API de Meteocat
         headers = {
@@ -418,8 +420,16 @@ def get_barcelona_rain():
             try:
                 logger.debug(f"Requesting data from Meteocat: {daily_endpoint}")
                 response = requests.get(daily_endpoint, headers=headers)
-                response.raise_for_status()
+                logger.debug(f"Response status code: {response.status_code}")
+                logger.debug(f"Response headers: {response.headers}")
+                
+                if response.status_code != 200:
+                    logger.warning(f"Received non-200 status code: {response.status_code}")
+                    logger.warning(f"Response content: {response.text}")
+                    continue
+
                 data = response.json()
+                logger.debug(f"Received data: {data}")
                 
                 # Buscar las medidas de precipitación (variable 35)
                 if 'variables' in data:
@@ -454,13 +464,18 @@ def get_barcelona_rain():
             logger.debug(f"Requesting monthly data from Meteocat: {monthly_endpoint}")
             
             response = requests.get(monthly_endpoint, headers=headers)
-            response.raise_for_status()
-            data = response.json()
+            logger.debug(f"Monthly data response status code: {response.status_code}")
             
-            # Sumar todas las lecturas hasta el mes anterior
-            if 'lectures' in data:
-                monthly_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
-                logger.info(f"Total rain for complete months: {monthly_rain}mm")
+            if response.status_code != 200:
+                logger.warning(f"Monthly data response error: {response.text}")
+            else:
+                data = response.json()
+                logger.debug(f"Monthly data received: {data}")
+                
+                # Sumar todas las lecturas hasta el mes anterior
+                if 'lectures' in data:
+                    monthly_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
+                    logger.info(f"Total rain for complete months: {monthly_rain}mm")
             
             # Obtener datos del mes actual
             if today.day > 1:
@@ -471,12 +486,17 @@ def get_barcelona_rain():
                 logger.debug(f"Requesting current month data from Meteocat: {current_month_endpoint}")
                 
                 response = requests.get(current_month_endpoint, headers=headers)
-                response.raise_for_status()
-                data = response.json()
+                logger.debug(f"Current month data response status code: {response.status_code}")
                 
-                if 'lectures' in data:
-                    current_month_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
-                    logger.info(f"Current month rain: {current_month_rain}mm")
+                if response.status_code != 200:
+                    logger.warning(f"Current month data response error: {response.text}")
+                else:
+                    data = response.json()
+                    logger.debug(f"Current month data received: {data}")
+                    
+                    if 'lectures' in data:
+                        current_month_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
+                        logger.info(f"Current month rain: {current_month_rain}mm")
                 
         except requests.exceptions.RequestException as e:
             logger.warning(f"Error getting monthly data: {str(e)}")
