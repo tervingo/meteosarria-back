@@ -385,7 +385,7 @@ def get_barcelona_rain():
         logger.info("barcelona-rain endpoint called")
         
         # Verificar API key
-        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "TU_API_KEY_AQUI":
+        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "d15t0xP0P17bLjSpV7Ecd9snECW0ivtEpWIBpXxf":
             error_msg = "Meteocat API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
