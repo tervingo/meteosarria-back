@@ -398,7 +398,7 @@ def get_barcelona_rain():
         
         # Headers para la API de Meteocat
         headers = {
-            'X-API-KEY': METEOCAT_API_KEY,
+            'Authorization': f'Bearer {METEOCAT_API_KEY}',
             'Accept': 'application/json'
         }
 
@@ -457,8 +457,8 @@ def get_barcelona_rain():
         
         try:
             # Obtener datos desde el inicio del año hasta el mes anterior
-            start_date = today.replace(month=1, day=1).strftime('%Y-%m-%d')
-            end_date = (today.replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')
+            start_date = today.replace(month=1, day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
+            end_date = (today.replace(day=1) - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
             
             monthly_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{start_date}/{end_date}"
             logger.debug(f"Requesting monthly data from Meteocat: {monthly_endpoint}")
@@ -479,8 +479,8 @@ def get_barcelona_rain():
             
             # Obtener datos del mes actual
             if today.day > 1:
-                current_month_start = today.replace(day=1).strftime('%Y-%m-%d')
-                current_month_end = (today - timedelta(days=1)).strftime('%Y-%m-%d')
+                current_month_start = today.replace(day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
+                current_month_end = (today - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
                 
                 current_month_endpoint = f"{METEOCAT_BASE_URL}/variables/mesurades/{FABRA_METEOCAT_ID}/35/{current_month_start}/{current_month_end}"
                 logger.debug(f"Requesting current month data from Meteocat: {current_month_endpoint}")
