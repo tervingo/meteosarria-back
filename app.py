@@ -399,6 +399,7 @@ def get_barcelona_rain():
         # Headers para la API de Meteocat
         headers = {
             'X-Api-Key': METEOCAT_API_KEY,
+            'Content-Type': 'application/json',
             'Accept': 'application/json'
         }
         logger.debug(f"Using headers: {headers}")
