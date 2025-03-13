@@ -403,6 +403,13 @@ def get_barcelona_rain():
         }
         logger.debug(f"Using headers: {headers}")
 
+        # Test request to municipis endpoint
+        test_url = f"{METEOCAT_BASE_URL}/municipis"
+        logger.debug(f"Testing authentication with municipis endpoint: {test_url}")
+        test_response = requests.get(test_url, headers=headers)
+        logger.debug(f"Test response status code: {test_response.status_code}")
+        logger.debug(f"Test response content: {test_response.text}")
+
         # Obtener datos del día actual
         daily_rain = 0.0
         last_available_date = None
