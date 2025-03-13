@@ -22,7 +22,7 @@ FABRA_STATION_ID = "0200E"  # ID de la estación del Observatorio Fabra
 
 # Configuración para la API de Meteocat
 METEOCAT_API_KEY = os.getenv('METEOCAT_API_KEY', "TU_API_KEY_AQUI")
-METEOCAT_BASE_URL = "https://api.meteo.cat/referencia/v1"
+METEOCAT_BASE_URL = "https://api.meteo.cat/xema/v1"  # Updated base URL
 FABRA_METEOCAT_ID = "X4"  # ID de la estación del Observatorio Fabra en Meteocat
 
 # Configure logging
@@ -400,16 +400,13 @@ def get_barcelona_rain():
         headers = {
             'X-Api-Key': METEOCAT_API_KEY,
             'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Origin': 'https://api.meteo.cat',
-            'Referer': 'https://api.meteo.cat/',
-            'User-Agent': 'MeteoSarria/1.0'
+            'Accept': 'application/json'
         }
         logger.debug(f"Using headers: {headers}")
 
         # Test request to municipis endpoint
-        test_url = f"{METEOCAT_BASE_URL}/municipis"
-        logger.debug(f"Testing authentication with municipis endpoint: {test_url}")
+        test_url = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{today.year}/{today.month:02d}/{today.day:02d}"
+        logger.debug(f"Testing authentication with endpoint: {test_url}")
         test_response = requests.get(test_url, headers=headers)
         logger.debug(f"Test response status code: {test_response.status_code}")
         logger.debug(f"Test response content: {test_response.text}")
@@ -428,12 +425,12 @@ def get_barcelona_rain():
         for days_back in range(1, 6):  # Intentar hasta 5 días atrás
             try_date = today - timedelta(days=days_back)
             
-            # Formato de fecha para Meteocat: AAAA-MM-DD
-            date_str = try_date.strftime('%Y-%m-%d')
+            # Formato de fecha para Meteocat: YYYY/MM/DD
+            date_str = f"{try_date.year}/{try_date.month:02d}/{try_date.day:02d}"
             logger.debug(f"Trying to get data for date: {date_str}")
 
             # Endpoint para datos diarios
-            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/dades/{FABRA_METEOCAT_ID}/{date_str}"
+            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{date_str}"
             
             try:
                 logger.debug(f"Requesting data from Meteocat: {daily_endpoint}")
