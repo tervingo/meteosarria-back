@@ -399,7 +399,8 @@ def get_barcelona_rain():
         # Headers para la API de Meteocat
         headers = {
             'X-Api-Key': METEOCAT_API_KEY,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
         }
         logger.debug(f"Using headers: {headers}")
 
@@ -409,6 +410,11 @@ def get_barcelona_rain():
         test_response = requests.get(test_url, headers=headers)
         logger.debug(f"Test response status code: {test_response.status_code}")
         logger.debug(f"Test response content: {test_response.text}")
+
+        if test_response.status_code != 200:
+            error_msg = f"Authentication test failed with status code {test_response.status_code}"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
 
         # Obtener datos del día actual
         daily_rain = 0.0
