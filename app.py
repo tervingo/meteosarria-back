@@ -410,6 +410,7 @@ def get_barcelona_rain():
         test_response = requests.get(test_url, headers=headers)
         logger.debug(f"Test response status code: {test_response.status_code}")
         logger.debug(f"Test response content: {test_response.text}")
+        logger.debug(f"Test response headers: {test_response.headers}")
 
         if test_response.status_code != 200:
             error_msg = f"Authentication test failed with status code {test_response.status_code}"
@@ -437,10 +438,12 @@ def get_barcelona_rain():
                 logger.debug(f"Response status code: {response.status_code}")
                 logger.debug(f"Response headers: {response.headers}")
                 logger.debug(f"Request headers sent: {response.request.headers}")
+                logger.debug(f"Full response content: {response.text}")
                 
                 if response.status_code != 200:
                     logger.warning(f"Received non-200 status code: {response.status_code}")
                     logger.warning(f"Response content: {response.text}")
+                    logger.warning(f"Response headers: {response.headers}")
                     continue
 
                 data = response.json()
