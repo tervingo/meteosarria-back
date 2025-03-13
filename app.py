@@ -400,7 +400,10 @@ def get_barcelona_rain():
         headers = {
             'X-Api-Key': METEOCAT_API_KEY,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Origin': 'https://api.meteo.cat',
+            'Referer': 'https://api.meteo.cat/',
+            'User-Agent': 'MeteoSarria/1.0'
         }
         logger.debug(f"Using headers: {headers}")
 
