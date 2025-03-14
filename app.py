@@ -43,7 +43,12 @@ try:
 except Exception as e:
     logging.error(f"Error connecting to MongoDB: {e}")
 
-# ... existing code ...
+# Cache for rain data
+rain_cache = {
+    'last_update': None,
+    'data': None,
+    'cache_duration': timedelta(hours=1)  # Update cache every hour
+}
 
 @app.route('/api/live')
 def live_weather():
@@ -392,52 +397,72 @@ def get_barcelona_rain():
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
 
+        # Check cache
+        now = datetime.now(pytz.timezone('Europe/Madrid'))
+        if (rain_cache['last_update'] and 
+            rain_cache['data'] and 
+            now - rain_cache['last_update'] < rain_cache['cache_duration']):
+            logger.info("Returning cached data")
+            return jsonify(rain_cache['data'])
+
         # Barcelona coordinates
         BARCELONA_LAT = 41.3874
         BARCELONA_LON = 2.1686
 
         # Get current date in Barcelona timezone
-        barcelona_tz = pytz.timezone('Europe/Madrid')
-        today = datetime.now(barcelona_tz)
+        today = now
         start_date = today.replace(month=1, day=1)
-        yesterday = today - timedelta(days=1)
 
-        # Get historical data (from start of year until yesterday)
+        # Get historical data using history API
         total_precipitation = 0.0
-        current_date = start_date
 
-        while current_date <= yesterday:
-            date_str = current_date.strftime('%Y-%m-%d')
-            url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={date_str}&appid={OPENWEATHER_API_KEY}'
+        # Get data month by month to reduce API calls
+        current_month = start_date
+        while current_month <= today:
+            # Get the last day of current month
+            if current_month.month == today.month and current_month.year == today.year:
+                end_date = today
+            else:
+                # Get last day of month
+                next_month = current_month.replace(day=28) + timedelta(days=4)
+                end_date = next_month - timedelta(days=next_month.day)
+
+            url = f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&dt={int(end_date.timestamp())}&appid={OPENWEATHER_API_KEY}'
             
             try:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    daily_precipitation = data.get('precipitation', {}).get('total', 0)
-                    total_precipitation += daily_precipitation
-                    logger.debug(f"Historical precipitation for {date_str}: {daily_precipitation}mm")
+                    # Get daily precipitation from hourly data
+                    hourly_data = data.get('hourly', [])
+                    daily_rain = sum(hour.get('rain', {}).get('1h', 0) for hour in hourly_data)
+                    total_precipitation += daily_rain
+                    logger.debug(f"Monthly precipitation for {current_month.strftime('%Y-%m')}: {daily_rain}mm")
                 else:
-                    logger.warning(f"Failed to get historical data for {date_str}: {response.status_code}")
+                    logger.warning(f"Failed to get data for {current_month.strftime('%Y-%m')}: {response.status_code}")
                     logger.warning(f"Response: {response.text}")
             except Exception as e:
-                logger.error(f"Error processing historical data for {date_str}: {e}")
-            
-            current_date += timedelta(days=1)
+                logger.error(f"Error processing data for {current_month.strftime('%Y-%m')}: {e}")
+
+            # Move to next month
+            if current_month.month == 12:
+                current_month = current_month.replace(year=current_month.year + 1, month=1)
+            else:
+                current_month = current_month.replace(month=current_month.month + 1)
+
             time.sleep(0.1)  # Small delay to respect API rate limits
 
-        # Get current day's precipitation
-        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=hourly,daily&appid={OPENWEATHER_API_KEY}'
+        # Get current day's precipitation from current weather
+        current_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}'
         try:
             response = requests.get(current_url)
             if response.status_code == 200:
                 data = response.json()
-                current_precipitation = data.get('current', {}).get('rain', {}).get('1h', 0)
+                current_precipitation = data.get('rain', {}).get('1h', 0)
                 total_precipitation += current_precipitation
-                logger.debug(f"Current day precipitation: {current_precipitation}mm")
+                logger.debug(f"Current precipitation: {current_precipitation}mm")
             else:
                 logger.warning(f"Failed to get current data: {response.status_code}")
-                logger.warning(f"Response: {response.text}")
         except Exception as e:
             logger.error(f"Error processing current data: {e}")
 
@@ -447,6 +472,10 @@ def get_barcelona_rain():
             'timestamp': today.strftime('%Y-%m-%d %H:%M:%S'),
             'last_available_date': today.strftime('%Y-%m-%d')
         }
+
+        # Update cache
+        rain_cache['data'] = response_data
+        rain_cache['last_update'] = now
         
         logger.info(f"Returning barcelona-rain data: {response_data}")
         return jsonify(response_data)
