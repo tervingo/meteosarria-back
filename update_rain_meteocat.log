@@ -1,0 +1,85 @@
+2025-03-14 21:19:02,851 - __main__ - INFO - Connected to MongoDB
+2025-03-14 21:19:02,852 - __main__ - INFO - Starting rain accumulation update from Meteocat
+2025-03-14 21:19:03,492 - __main__ - INFO - No previous records found, getting data from 2025-01-01
+2025-03-14 21:19:03,705 - __main__ - ERROR - Error getting rain data for 2025-01-01: 403 Client Error: Forbidden for url: https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/01/01
+2025-03-14 21:19:04,821 - __main__ - ERROR - Error getting rain data for 2025-01-02: 403 Client Error: Forbidden for url: https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/01/02
+2025-03-14 21:19:05,923 - __main__ - ERROR - Error getting rain data for 2025-01-03: 403 Client Error: Forbidden for url: https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/01/03
+2025-03-14 21:19:07,072 - __main__ - ERROR - Error getting rain data for 2025-01-04: 403 Client Error: Forbidden for url: https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/01/04
+2025-03-14 21:44:31,413 - __main__ - INFO - Connected to MongoDB
+2025-03-14 21:44:31,413 - __main__ - INFO - Starting rain accumulation update from Meteocat
+2025-03-14 21:44:32,073 - __main__ - INFO - No previous records found, getting data from 2025-01-01
+2025-03-14 21:44:32,343 - __main__ - INFO - Rain for 2025-01-01: 0.00mm
+2025-03-14 21:44:33,535 - __main__ - INFO - Rain for 2025-01-02: 0.00mm
+2025-03-14 21:44:34,769 - __main__ - INFO - Rain for 2025-01-03: 0.00mm
+2025-03-14 21:44:36,011 - __main__ - INFO - Rain for 2025-01-04: 0.00mm
+2025-03-14 21:44:37,180 - __main__ - INFO - Rain for 2025-01-05: 0.00mm
+2025-03-14 21:44:38,354 - __main__ - INFO - Rain for 2025-01-06: 0.10mm
+2025-03-14 21:44:39,582 - __main__ - INFO - Rain for 2025-01-07: 0.00mm
+2025-03-14 21:44:40,863 - __main__ - INFO - Rain for 2025-01-08: 0.00mm
+2025-03-14 21:44:42,108 - __main__ - INFO - Rain for 2025-01-09: 0.00mm
+2025-03-14 21:44:43,330 - __main__ - INFO - Rain for 2025-01-10: 0.00mm
+2025-03-14 21:44:44,495 - __main__ - INFO - Rain for 2025-01-11: 0.10mm
+2025-03-14 21:44:45,692 - __main__ - INFO - Rain for 2025-01-12: 0.00mm
+2025-03-14 21:44:46,866 - __main__ - INFO - Rain for 2025-01-13: 0.00mm
+2025-03-14 21:44:48,070 - __main__ - INFO - Rain for 2025-01-14: 0.00mm
+2025-03-14 21:44:49,271 - __main__ - INFO - Rain for 2025-01-15: 0.00mm
+2025-03-14 21:44:50,477 - __main__ - INFO - Rain for 2025-01-16: 0.70mm
+2025-03-14 21:44:51,670 - __main__ - INFO - Rain for 2025-01-17: 1.00mm
+2025-03-14 21:44:52,868 - __main__ - INFO - Rain for 2025-01-18: 0.00mm
+2025-03-14 21:44:54,052 - __main__ - INFO - Rain for 2025-01-19: 0.00mm
+2025-03-14 21:44:55,261 - __main__ - INFO - Rain for 2025-01-20: 0.00mm
+2025-03-14 21:44:56,437 - __main__ - INFO - Rain for 2025-01-21: 0.10mm
+2025-03-14 21:44:57,657 - __main__ - INFO - Rain for 2025-01-22: 0.00mm
+2025-03-14 21:44:58,843 - __main__ - INFO - Rain for 2025-01-23: 0.00mm
+2025-03-14 21:45:00,051 - __main__ - INFO - Rain for 2025-01-24: 0.00mm
+2025-03-14 21:45:01,240 - __main__ - INFO - Rain for 2025-01-25: 0.00mm
+2025-03-14 21:45:02,455 - __main__ - INFO - Rain for 2025-01-26: 0.00mm
+2025-03-14 21:45:03,636 - __main__ - INFO - Rain for 2025-01-27: 0.80mm
+2025-03-14 21:45:04,815 - __main__ - INFO - Rain for 2025-01-28: 0.00mm
+2025-03-14 21:45:06,058 - __main__ - INFO - Rain for 2025-01-29: 0.00mm
+2025-03-14 21:45:07,254 - __main__ - INFO - Rain for 2025-01-30: 0.00mm
+2025-03-14 21:45:08,442 - __main__ - INFO - Rain for 2025-01-31: 0.00mm
+2025-03-14 21:45:09,655 - __main__ - INFO - Rain for 2025-02-01: 4.60mm
+2025-03-14 21:45:10,853 - __main__ - INFO - Rain for 2025-02-02: 0.40mm
+2025-03-14 21:45:12,023 - __main__ - INFO - Rain for 2025-02-03: 0.00mm
+2025-03-14 21:45:13,196 - __main__ - INFO - Rain for 2025-02-04: 0.00mm
+2025-03-14 21:45:14,383 - __main__ - INFO - Rain for 2025-02-05: 0.00mm
+2025-03-14 21:45:15,586 - __main__ - INFO - Rain for 2025-02-06: 0.00mm
+2025-03-14 21:45:16,780 - __main__ - INFO - Rain for 2025-02-07: 8.90mm
+2025-03-14 21:45:18,000 - __main__ - INFO - Rain for 2025-02-08: 11.20mm
+2025-03-14 21:45:19,182 - __main__ - INFO - Rain for 2025-02-09: 0.00mm
+2025-03-14 21:45:20,405 - __main__ - INFO - Rain for 2025-02-10: 0.00mm
+2025-03-14 21:45:21,606 - __main__ - INFO - Rain for 2025-02-11: 0.20mm
+2025-03-14 21:45:22,854 - __main__ - INFO - Rain for 2025-02-12: 26.30mm
+2025-03-14 21:45:24,019 - __main__ - INFO - Rain for 2025-02-13: 0.10mm
+2025-03-14 21:45:25,240 - __main__ - INFO - Rain for 2025-02-14: 0.00mm
+2025-03-14 21:45:26,423 - __main__ - INFO - Rain for 2025-02-15: 0.00mm
+2025-03-14 21:45:27,643 - __main__ - INFO - Rain for 2025-02-16: 0.00mm
+2025-03-14 21:45:28,816 - __main__ - INFO - Rain for 2025-02-17: 0.00mm
+2025-03-14 21:45:30,043 - __main__ - INFO - Rain for 2025-02-18: 0.00mm
+2025-03-14 21:45:31,231 - __main__ - INFO - Rain for 2025-02-19: 0.00mm
+2025-03-14 21:45:32,415 - __main__ - INFO - Rain for 2025-02-20: 0.40mm
+2025-03-14 21:45:33,609 - __main__ - INFO - Rain for 2025-02-21: 3.60mm
+2025-03-14 21:45:34,840 - __main__ - INFO - Rain for 2025-02-22: 3.20mm
+2025-03-14 21:45:36,039 - __main__ - INFO - Rain for 2025-02-23: 0.70mm
+2025-03-14 21:45:37,233 - __main__ - INFO - Rain for 2025-02-24: 0.00mm
+2025-03-14 21:45:38,453 - __main__ - INFO - Rain for 2025-02-25: 0.50mm
+2025-03-14 21:45:39,624 - __main__ - INFO - Rain for 2025-02-26: 0.00mm
+2025-03-14 21:45:40,836 - __main__ - INFO - Rain for 2025-02-27: 0.00mm
+2025-03-14 21:45:42,004 - __main__ - INFO - Rain for 2025-02-28: 0.00mm
+2025-03-14 21:45:43,208 - __main__ - INFO - Rain for 2025-03-01: 0.00mm
+2025-03-14 21:45:44,390 - __main__ - INFO - Rain for 2025-03-02: 0.00mm
+2025-03-14 21:45:45,600 - __main__ - INFO - Rain for 2025-03-03: 0.80mm
+2025-03-14 21:45:46,814 - __main__ - INFO - Rain for 2025-03-04: 0.00mm
+2025-03-14 21:45:48,008 - __main__ - INFO - Rain for 2025-03-05: 0.00mm
+2025-03-14 21:45:49,199 - __main__ - INFO - Rain for 2025-03-06: 7.70mm
+2025-03-14 21:45:50,398 - __main__ - INFO - Rain for 2025-03-07: 31.00mm
+2025-03-14 21:45:51,589 - __main__ - INFO - Rain for 2025-03-08: 9.00mm
+2025-03-14 21:45:52,784 - __main__ - INFO - Rain for 2025-03-09: 37.00mm
+2025-03-14 21:45:54,013 - __main__ - INFO - Rain for 2025-03-10: 0.00mm
+2025-03-14 21:45:55,218 - __main__ - INFO - Rain for 2025-03-11: 0.20mm
+2025-03-14 21:45:56,402 - __main__ - INFO - Rain for 2025-03-12: 0.40mm
+2025-03-14 21:45:57,564 - __main__ - INFO - Rain for 2025-03-13: 3.00mm
+2025-03-14 21:45:58,717 - __main__ - INFO - Rain for 2025-03-13: 3.00mm
+2025-03-14 21:45:58,774 - __main__ - INFO - Updated rain accumulation: 152.00mm
+2025-03-14 21:45:58,775 - __main__ - INFO - Finished rain accumulation update from Meteocat
