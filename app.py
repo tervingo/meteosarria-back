@@ -408,65 +408,50 @@ def get_barcelona_rain():
         # Barcelona coordinates
         BARCELONA_LAT = 41.3874
         BARCELONA_LON = 2.1686
-        BARCELONA_CITY_ID = "3128760"  # Barcelona city ID for OpenWeatherMap
 
         # Get current date in Barcelona timezone
         today = now
         start_date = today.replace(month=1, day=1)
+        yesterday = today - timedelta(days=1)
 
-        # Get historical data using history/city API
+        # Calculate accumulated precipitation
         total_precipitation = 0.0
+        current_date = start_date
 
-        # Get data month by month
-        current_month = start_date
-        while current_month <= today:
-            # Calculate start and end timestamps for this month
-            if current_month.month == today.month and current_month.year == today.year:
-                end_date = today
-            else:
-                # Get last day of month
-                next_month = current_month.replace(day=28) + timedelta(days=4)
-                end_date = next_month - timedelta(days=next_month.day)
-
-            start_ts = int(current_month.timestamp())
-            end_ts = int(end_date.timestamp())
-            
-            url = f'https://history.openweathermap.org/data/2.5/history/city?id={BARCELONA_CITY_ID}&type=hour&start={start_ts}&end={end_ts}&appid={OPENWEATHER_API_KEY}'
+        logger.info("Getting historical precipitation data...")
+        while current_date <= yesterday:
+            date_str = current_date.strftime('%Y-%m-%d')
+            url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={date_str}&appid={OPENWEATHER_API_KEY}'
             
             try:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    # Sum precipitation from hourly data
-                    hourly_list = data.get('list', [])
-                    monthly_rain = sum(hour.get('rain', {}).get('1h', 0) for hour in hourly_list)
-                    total_precipitation += monthly_rain
-                    logger.debug(f"Monthly precipitation for {current_month.strftime('%Y-%m')}: {monthly_rain}mm")
+                    daily_precipitation = data.get('precipitation', {}).get('total', 0)
+                    total_precipitation += daily_precipitation
+                    logger.debug(f"Date: {date_str}, Precipitation: {daily_precipitation:.2f} mm")
                 else:
-                    logger.warning(f"Failed to get data for {current_month.strftime('%Y-%m')}: {response.status_code}")
+                    logger.warning(f"Failed to get data for {date_str}: {response.status_code}")
                     logger.warning(f"Response: {response.text}")
             except Exception as e:
-                logger.error(f"Error processing data for {current_month.strftime('%Y-%m')}: {e}")
+                logger.error(f"Error processing data for {date_str}: {e}")
+            
+            current_date += timedelta(days=1)
+            time.sleep(0.05)  # Same delay as in test_owm.py
 
-            # Move to next month
-            if current_month.month == 12:
-                current_month = current_month.replace(year=current_month.year + 1, month=1)
-            else:
-                current_month = current_month.replace(month=current_month.month + 1)
-
-            time.sleep(0.1)  # Small delay to respect API rate limits
-
-        # Get current day's precipitation from current weather
-        current_url = f'https://api.openweathermap.org/data/2.5/weather?id={BARCELONA_CITY_ID}&appid={OPENWEATHER_API_KEY}'
+        # Get current day's precipitation
+        logger.info("Getting current day precipitation...")
+        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=hourly,daily&appid={OPENWEATHER_API_KEY}'
         try:
             response = requests.get(current_url)
             if response.status_code == 200:
                 data = response.json()
-                current_precipitation = data.get('rain', {}).get('1h', 0)
+                current_precipitation = data.get('current', {}).get('rain', {}).get('1h', 0)
                 total_precipitation += current_precipitation
-                logger.debug(f"Current precipitation: {current_precipitation}mm")
+                logger.debug(f"Current day precipitation: {current_precipitation:.2f} mm")
             else:
                 logger.warning(f"Failed to get current data: {response.status_code}")
+                logger.warning(f"Response: {response.text}")
         except Exception as e:
             logger.error(f"Error processing current data: {e}")
 

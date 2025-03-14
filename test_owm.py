@@ -74,7 +74,7 @@ while current_date <= yesterday:
     current_date += timedelta(days=1)
     
     # Pequeña pausa para no exceder límites de la API
-    time.sleep(1)
+    time.sleep(0.01)
 
 # Obtener datos de precipitación de hoy
 print("\nObteniendo datos de precipitación de hoy...")
