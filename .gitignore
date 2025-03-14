@@ -2,3 +2,4 @@ __pycache__/
 node_modules/
 .env
 update_rain.log
+owm.txt

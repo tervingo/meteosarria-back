@@ -400,6 +400,7 @@ def get_barcelona_rain():
         # Get current date in Barcelona timezone
         barcelona_tz = pytz.timezone('Europe/Madrid')
         now = datetime.now(barcelona_tz)
+        today_str = now.strftime('%Y-%m-%d')
 
         # Get last accumulation record from MongoDB
         last_record = db.rain_accumulation.find_one(sort=[("date", -1)])
@@ -411,18 +412,18 @@ def get_barcelona_rain():
         accumulated_rain = last_record['accumulated']
         logger.info(f"Found accumulated rain until {last_record['date']}: {accumulated_rain:.2f}mm")
 
-        # Get current day's precipitation from OpenWeatherMap
+        # Get current day's precipitation from OpenWeatherMap using day_summary
         BARCELONA_LAT = 41.3874
         BARCELONA_LON = 2.1686
         
-        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=minutely,hourly,daily,alerts&appid={OPENWEATHER_API_KEY}'
+        current_url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={today_str}&appid={OPENWEATHER_API_KEY}'
         
         try:
             response = requests.get(current_url)
             response.raise_for_status()
             data = response.json()
-            current_rain = data.get('current', {}).get('rain', {}).get('1h', 0)
-            logger.info(f"Current day rain: {current_rain:.2f}mm")
+            current_rain = data.get('precipitation', {}).get('total', 0)
+            logger.info(f"Today's accumulated rain: {current_rain:.2f}mm")
         except Exception as e:
             logger.error(f"Error getting current rain data: {e}")
             current_rain = 0
