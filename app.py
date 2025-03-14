@@ -413,8 +413,8 @@ def get_barcelona_rain():
         logger.info(f"Found accumulated rain until {last_record['date']}: {accumulated_rain:.2f}mm")
 
         # Get current day's precipitation from OpenWeatherMap using day_summary
-        BARCELONA_LAT = 41.3874
-        BARCELONA_LON = 2.1686
+        BARCELONA_LAT = 41.389
+        BARCELONA_LON = 2.159
         
         current_url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={today_str}&appid={OPENWEATHER_API_KEY}'
         

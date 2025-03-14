@@ -37,8 +37,8 @@ def get_daily_rain(date: datetime) -> float:
     if not OPENWEATHER_API_KEY:
         raise ValueError("OpenWeather API key not found in environment variables")
 
-    BARCELONA_LAT = 41.3874
-    BARCELONA_LON = 2.1686
+    BARCELONA_LAT = 41.389
+    BARCELONA_LON = 2.159
     
     # Ensure we use naive date for API call
     date_str = date.strftime('%Y-%m-%d')
