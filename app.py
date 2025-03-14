@@ -408,18 +408,19 @@ def get_barcelona_rain():
         # Barcelona coordinates
         BARCELONA_LAT = 41.3874
         BARCELONA_LON = 2.1686
+        BARCELONA_CITY_ID = "3128760"  # Barcelona city ID for OpenWeatherMap
 
         # Get current date in Barcelona timezone
         today = now
         start_date = today.replace(month=1, day=1)
 
-        # Get historical data using history API
+        # Get historical data using history/city API
         total_precipitation = 0.0
 
-        # Get data month by month to reduce API calls
+        # Get data month by month
         current_month = start_date
         while current_month <= today:
-            # Get the last day of current month
+            # Calculate start and end timestamps for this month
             if current_month.month == today.month and current_month.year == today.year:
                 end_date = today
             else:
@@ -427,17 +428,20 @@ def get_barcelona_rain():
                 next_month = current_month.replace(day=28) + timedelta(days=4)
                 end_date = next_month - timedelta(days=next_month.day)
 
-            url = f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&dt={int(end_date.timestamp())}&appid={OPENWEATHER_API_KEY}'
+            start_ts = int(current_month.timestamp())
+            end_ts = int(end_date.timestamp())
+            
+            url = f'https://history.openweathermap.org/data/2.5/history/city?id={BARCELONA_CITY_ID}&type=hour&start={start_ts}&end={end_ts}&appid={OPENWEATHER_API_KEY}'
             
             try:
                 response = requests.get(url)
                 if response.status_code == 200:
                     data = response.json()
-                    # Get daily precipitation from hourly data
-                    hourly_data = data.get('hourly', [])
-                    daily_rain = sum(hour.get('rain', {}).get('1h', 0) for hour in hourly_data)
-                    total_precipitation += daily_rain
-                    logger.debug(f"Monthly precipitation for {current_month.strftime('%Y-%m')}: {daily_rain}mm")
+                    # Sum precipitation from hourly data
+                    hourly_list = data.get('list', [])
+                    monthly_rain = sum(hour.get('rain', {}).get('1h', 0) for hour in hourly_list)
+                    total_precipitation += monthly_rain
+                    logger.debug(f"Monthly precipitation for {current_month.strftime('%Y-%m')}: {monthly_rain}mm")
                 else:
                     logger.warning(f"Failed to get data for {current_month.strftime('%Y-%m')}: {response.status_code}")
                     logger.warning(f"Response: {response.text}")
@@ -453,7 +457,7 @@ def get_barcelona_rain():
             time.sleep(0.1)  # Small delay to respect API rate limits
 
         # Get current day's precipitation from current weather
-        current_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}'
+        current_url = f'https://api.openweathermap.org/data/2.5/weather?id={BARCELONA_CITY_ID}&appid={OPENWEATHER_API_KEY}'
         try:
             response = requests.get(current_url)
             if response.status_code == 200:
