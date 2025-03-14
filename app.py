@@ -8,6 +8,7 @@ import os
 import pytz
 import requests
 from typing import Dict, Any, Tuple, Optional
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -23,7 +24,7 @@ FABRA_STATION_ID = "0200E"  # ID de la estación del Observatorio Fabra
 # Configuración para la API de Meteocat
 METEOCAT_API_KEY = os.getenv('METEOCAT_API_KEY', "TU_API_KEY_AQUI")
 METEOCAT_BASE_URL = "https://api.meteo.cat/xema/v1"  # Updated base URL
-FABRA_METEOCAT_ID = "X4"  # ID de la estación del Observatorio Fabra en Meteocat
+FABRA_METEOCAT_ID = "D5"  # ID de la estación del Observatorio Fabra en Meteocat
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -384,157 +385,67 @@ def get_barcelona_rain():
     try:
         logger.info("barcelona-rain endpoint called")
         
-        # Verificar API key
-        logger.debug(f"Checking Meteocat API key configuration...")
-        if not METEOCAT_API_KEY or METEOCAT_API_KEY == "TU_API_KEY_AQUI":
-            error_msg = "Meteocat API key not configured"
+        # Get OpenWeatherMap API key from environment
+        OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+        if not OPENWEATHER_API_KEY:
+            error_msg = "OpenWeatherMap API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
 
-        # Obtener fecha actual en zona horaria de Barcelona
+        # Barcelona coordinates
+        BARCELONA_LAT = 41.3874
+        BARCELONA_LON = 2.1686
+
+        # Get current date in Barcelona timezone
         barcelona_tz = pytz.timezone('Europe/Madrid')
         today = datetime.now(barcelona_tz)
-        logger.debug(f"Current date in Barcelona timezone: {today}")
-        
-        # Headers para la API de Meteocat
-        headers = {
-            'X-Api-Key': METEOCAT_API_KEY,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        }
-        logger.debug(f"Using headers: {headers}")
+        start_date = today.replace(month=1, day=1)
+        yesterday = today - timedelta(days=1)
 
-        # Test request to municipis endpoint
-        test_url = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{today.year}/{today.month:02d}/{today.day:02d}"
-        logger.debug(f"Testing authentication with endpoint: {test_url}")
-        test_response = requests.get(test_url, headers=headers)
-        logger.debug(f"Test response status code: {test_response.status_code}")
-        logger.debug(f"Test response content: {test_response.text}")
-        logger.debug(f"Test response headers: {test_response.headers}")
+        # Get historical data (from start of year until yesterday)
+        total_precipitation = 0.0
+        current_date = start_date
 
-        if test_response.status_code != 200:
-            error_msg = f"Authentication test failed with status code {test_response.status_code}"
-            logger.error(error_msg)
-            return jsonify({'error': error_msg}), 500
-
-        # Obtener datos del día actual
-        daily_rain = 0.0
-        last_available_date = None
-
-        # Intentar obtener datos de los últimos días
-        for days_back in range(1, 6):  # Intentar hasta 5 días atrás
-            try_date = today - timedelta(days=days_back)
-            
-            # Formato de fecha para Meteocat: YYYY/MM/DD
-            date_str = f"{try_date.year}/{try_date.month:02d}/{try_date.day:02d}"
-            logger.debug(f"Trying to get data for date: {date_str}")
-
-            # Endpoint para datos diarios
-            daily_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesurades/{FABRA_METEOCAT_ID}/{date_str}"
+        while current_date <= yesterday:
+            date_str = current_date.strftime('%Y-%m-%d')
+            url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={date_str}&appid={OPENWEATHER_API_KEY}'
             
             try:
-                logger.debug(f"Requesting data from Meteocat: {daily_endpoint}")
-                response = requests.get(daily_endpoint, headers=headers)
-                logger.debug(f"Response status code: {response.status_code}")
-                logger.debug(f"Response headers: {response.headers}")
-                logger.debug(f"Request headers sent: {response.request.headers}")
-                logger.debug(f"Full response content: {response.text}")
-                
-                if response.status_code != 200:
-                    logger.warning(f"Received non-200 status code: {response.status_code}")
-                    logger.warning(f"Response content: {response.text}")
-                    logger.warning(f"Response headers: {response.headers}")
-                    continue
-
-                data = response.json()
-                logger.debug(f"Received data: {data}")
-                
-                # Buscar las medidas de precipitación (variable 35)
-                if 'variables' in data:
-                    for variable in data['variables']:
-                        if variable['codi'] == 35:  # Código para precipitación
-                            # Sumar todas las lecturas del día
-                            daily_rain = sum(float(lectura['valor']) for lectura in variable['lectures'] if lectura['valor'] is not None)
-                            last_available_date = try_date
-                            logger.info(f"Found valid rain data: {daily_rain}mm for date {date_str}")
-                            break
-                    
-                    if last_available_date:
-                        break  # Si encontramos datos válidos, salimos del bucle
-                        
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"Error getting data for {date_str}: {str(e)}")
-                continue
-            except (ValueError, KeyError) as e:
-                logger.warning(f"Error processing data for {date_str}: {str(e)}")
-                continue
-
-        # Obtener datos mensuales del año actual
-        monthly_rain = 0.0
-        current_month_rain = 0.0
-        
-        try:
-            # Obtener datos desde el inicio del año hasta el mes anterior
-            start_date = today.replace(month=1, day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
-            end_date = (today.replace(day=1) - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
-            
-            monthly_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesures/{FABRA_METEOCAT_ID}/35/{start_date}/{end_date}"
-            logger.debug(f"Requesting monthly data from Meteocat: {monthly_endpoint}")
-            
-            response = requests.get(monthly_endpoint, headers=headers)
-            logger.debug(f"Monthly data response status code: {response.status_code}")
-            logger.debug(f"Request headers sent for monthly data: {response.request.headers}")
-            
-            if response.status_code != 200:
-                logger.warning(f"Monthly data response error: {response.text}")
-            else:
-                data = response.json()
-                logger.debug(f"Monthly data received: {data}")
-                
-                # Sumar todas las lecturas hasta el mes anterior
-                if 'lectures' in data:
-                    monthly_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
-                    logger.info(f"Total rain for complete months: {monthly_rain}mm")
-            
-            # Obtener datos del mes actual
-            if today.day > 1:
-                current_month_start = today.replace(day=1).strftime('%Y%m%d')  # Formato YYYYMMDD
-                current_month_end = (today - timedelta(days=1)).strftime('%Y%m%d')  # Formato YYYYMMDD
-                
-                current_month_endpoint = f"{METEOCAT_BASE_URL}/estacions/mesures/{FABRA_METEOCAT_ID}/35/{current_month_start}/{current_month_end}"
-                logger.debug(f"Requesting current month data from Meteocat: {current_month_endpoint}")
-                
-                response = requests.get(current_month_endpoint, headers=headers)
-                logger.debug(f"Current month data response status code: {response.status_code}")
-                logger.debug(f"Request headers sent for current month data: {response.request.headers}")
-                
-                if response.status_code != 200:
-                    logger.warning(f"Current month data response error: {response.text}")
-                else:
+                response = requests.get(url)
+                if response.status_code == 200:
                     data = response.json()
-                    logger.debug(f"Current month data received: {data}")
-                    
-                    if 'lectures' in data:
-                        current_month_rain = sum(float(lectura['valor']) for lectura in data['lectures'] if lectura['valor'] is not None)
-                        logger.info(f"Current month rain: {current_month_rain}mm")
-                
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Error getting monthly data: {str(e)}")
-        except (ValueError, KeyError) as e:
-            logger.warning(f"Error processing monthly data: {str(e)}")
+                    daily_precipitation = data.get('precipitation', {}).get('total', 0)
+                    total_precipitation += daily_precipitation
+                    logger.debug(f"Historical precipitation for {date_str}: {daily_precipitation}mm")
+                else:
+                    logger.warning(f"Failed to get historical data for {date_str}: {response.status_code}")
+                    logger.warning(f"Response: {response.text}")
+            except Exception as e:
+                logger.error(f"Error processing historical data for {date_str}: {e}")
+            
+            current_date += timedelta(days=1)
+            time.sleep(0.1)  # Small delay to respect API rate limits
 
-        # Calcular el total anual
-        yearly_rain = monthly_rain + current_month_rain + daily_rain
-        
+        # Get current day's precipitation
+        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=hourly,daily&appid={OPENWEATHER_API_KEY}'
+        try:
+            response = requests.get(current_url)
+            if response.status_code == 200:
+                data = response.json()
+                current_precipitation = data.get('current', {}).get('rain', {}).get('1h', 0)
+                total_precipitation += current_precipitation
+                logger.debug(f"Current day precipitation: {current_precipitation}mm")
+            else:
+                logger.warning(f"Failed to get current data: {response.status_code}")
+                logger.warning(f"Response: {response.text}")
+        except Exception as e:
+            logger.error(f"Error processing current data: {e}")
+
         response_data = {
-            'daily_rain': daily_rain,
-            'yearly_rain': yearly_rain,
-            'monthly_rain': monthly_rain,
-            'current_month_rain': current_month_rain,
-            'station_name': 'Observatorio Fabra',
-            'station_id': FABRA_METEOCAT_ID,
+            'yearly_rain': round(total_precipitation, 1),
+            'station_name': 'OpenWeatherMap Barcelona',
             'timestamp': today.strftime('%Y-%m-%d %H:%M:%S'),
-            'last_available_date': last_available_date.strftime('%Y-%m-%d') if last_available_date else None
+            'last_available_date': today.strftime('%Y-%m-%d')
         }
         
         logger.info(f"Returning barcelona-rain data: {response_data}")
