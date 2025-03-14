@@ -397,74 +397,47 @@ def get_barcelona_rain():
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
 
-        # Check cache
-        now = datetime.now(pytz.timezone('Europe/Madrid'))
-        if (rain_cache['last_update'] and 
-            rain_cache['data'] and 
-            now - rain_cache['last_update'] < rain_cache['cache_duration']):
-            logger.info("Returning cached data")
-            return jsonify(rain_cache['data'])
+        # Get current date in Barcelona timezone
+        barcelona_tz = pytz.timezone('Europe/Madrid')
+        now = datetime.now(barcelona_tz)
 
-        # Barcelona coordinates
+        # Get last accumulation record from MongoDB
+        last_record = db.rain_accumulation.find_one(sort=[("date", -1)])
+        if not last_record:
+            error_msg = "No rain accumulation data found in database"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+
+        accumulated_rain = last_record['accumulated']
+        logger.info(f"Found accumulated rain until {last_record['date']}: {accumulated_rain:.2f}mm")
+
+        # Get current day's precipitation from OpenWeatherMap
         BARCELONA_LAT = 41.3874
         BARCELONA_LON = 2.1686
-
-        # Get current date in Barcelona timezone
-        today = now
-        start_date = today.replace(month=1, day=1)
-        yesterday = today - timedelta(days=1)
-
-        # Calculate accumulated precipitation
-        total_precipitation = 0.0
-        current_date = start_date
-
-        logger.info("Getting historical precipitation data...")
-        while current_date <= yesterday:
-            date_str = current_date.strftime('%Y-%m-%d')
-            url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={date_str}&appid={OPENWEATHER_API_KEY}'
-            
-            try:
-                response = requests.get(url)
-                if response.status_code == 200:
-                    data = response.json()
-                    daily_precipitation = data.get('precipitation', {}).get('total', 0)
-                    total_precipitation += daily_precipitation
-                    logger.debug(f"Date: {date_str}, Precipitation: {daily_precipitation:.2f} mm")
-                else:
-                    logger.warning(f"Failed to get data for {date_str}: {response.status_code}")
-                    logger.warning(f"Response: {response.text}")
-            except Exception as e:
-                logger.error(f"Error processing data for {date_str}: {e}")
-            
-            current_date += timedelta(days=1)
-            time.sleep(0.05)  # Same delay as in test_owm.py
-
-        # Get current day's precipitation
-        logger.info("Getting current day precipitation...")
-        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=hourly,daily&appid={OPENWEATHER_API_KEY}'
+        
+        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&exclude=minutely,hourly,daily,alerts&appid={OPENWEATHER_API_KEY}'
+        
         try:
             response = requests.get(current_url)
-            if response.status_code == 200:
-                data = response.json()
-                current_precipitation = data.get('current', {}).get('rain', {}).get('1h', 0)
-                total_precipitation += current_precipitation
-                logger.debug(f"Current day precipitation: {current_precipitation:.2f} mm")
-            else:
-                logger.warning(f"Failed to get current data: {response.status_code}")
-                logger.warning(f"Response: {response.text}")
+            response.raise_for_status()
+            data = response.json()
+            current_rain = data.get('current', {}).get('rain', {}).get('1h', 0)
+            logger.info(f"Current day rain: {current_rain:.2f}mm")
         except Exception as e:
-            logger.error(f"Error processing current data: {e}")
+            logger.error(f"Error getting current rain data: {e}")
+            current_rain = 0
+
+        # Calculate total rain
+        total_rain = accumulated_rain + current_rain
 
         response_data = {
-            'yearly_rain': round(total_precipitation, 1),
+            'yearly_rain': round(total_rain, 1),
+            'today_rain': round(current_rain, 1),
+            'accumulated_until_yesterday': round(accumulated_rain, 1),
             'station_name': 'OpenWeatherMap Barcelona',
-            'timestamp': today.strftime('%Y-%m-%d %H:%M:%S'),
-            'last_available_date': today.strftime('%Y-%m-%d')
+            'timestamp': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'last_available_date': last_record['date']
         }
-
-        # Update cache
-        rain_cache['data'] = response_data
-        rain_cache['last_update'] = now
         
         logger.info(f"Returning barcelona-rain data: {response_data}")
         return jsonify(response_data)
