@@ -47,7 +47,7 @@ except Exception as e:
 rain_cache = {
     'last_update': None,
     'data': None,
-    'cache_duration': timedelta(hours=1)  # Update cache every hour
+    'cache_duration': timedelta(hours=1)  # Default to 1 hour cache
 }
 
 @app.route('/api/live')
@@ -390,6 +390,14 @@ def get_barcelona_rain():
     try:
         logger.info("barcelona-rain endpoint called")
         
+        # Check if we have valid cached data
+        now = datetime.now(pytz.timezone('Europe/Madrid'))
+        if rain_cache['data'] and rain_cache['last_update']:
+            time_since_update = now - rain_cache['last_update']
+            if time_since_update < rain_cache['cache_duration']:
+                logger.info("Returning cached rain data")
+                return jsonify(rain_cache['data'])
+
         # Get OpenWeatherMap API key from environment
         OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
         if not OPENWEATHER_API_KEY:
@@ -440,7 +448,13 @@ def get_barcelona_rain():
             'last_available_date': last_record['date']
         }
         
-        logger.info(f"Returning barcelona-rain data: {response_data}")
+        # Update cache
+        rain_cache['data'] = response_data
+        rain_cache['last_update'] = now
+        # Set cache duration based on whether it's raining
+        rain_cache['cache_duration'] = timedelta(minutes=20) if current_rain > 0 else timedelta(hours=1)
+        
+        logger.info(f"Updated cache with new rain data. Cache duration: {rain_cache['cache_duration']}")
         return jsonify(response_data)
         
     except Exception as e:
