@@ -57,8 +57,8 @@ def get_daily_rain(date: datetime) -> float:
         # Sum all precipitation values for each half-hour interval
         daily_rain = 0.0
         for lecture in data.get('lectures', []):
-            if lecture.get('estat') == 'V':  # Only count valid measurements
-                daily_rain += float(lecture.get('valor', 0))
+        #    if lecture.get('estat') == 'V':  # Only count valid measurements
+            daily_rain += float(lecture.get('valor', 0))
         
         logger.info(f"Rain for {date.strftime('%Y-%m-%d')}: {daily_rain:.2f}mm")
         return daily_rain
