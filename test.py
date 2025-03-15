@@ -3,7 +3,7 @@ import requests
  
 key = 'd15t0xP0P17bLjSpV7Ecd9snECW0ivtEpWIBpXxf'
 url_fabra = 'https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/03/13'
-url_fabra_prec = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/03/14?codiEstacio=D5'
+url_fabra_prec = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/03/15?codiEstacio=D5'
  
 url_meses = 'https://api.meteo.cat/xema/v1/estacions/mesures/D5/35/20250101/20250131'
 url_vbles = 'https://api.meteo.cat/xema/v1/representatives/metadades/variables'
@@ -20,7 +20,7 @@ url_consum = 'https://api.meteo.cat/quotes/v1/consum-actual'
 
 url_update_14mar25 = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/03/14?codiEstacio=D5'
 
-response = requests.get(url_consum, headers={"Content-Type": "application/json", "X-Api-Key": key})
+response = requests.get(url_fabra_prec, headers={"Content-Type": "application/json", "X-Api-Key": key})
 
 print(response.status_code)  #statusCode
 print(response.text) #valors de la resposta

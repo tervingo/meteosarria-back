@@ -479,7 +479,7 @@ def get_barcelona_rain():
                 
                 # Sum all precipitation values for each half-hour interval
                 for lecture in data.get('lectures', []):
-                    if lecture.get('estat') == 'V':  # Only count valid measurements
+                    if lecture.get('estat') in ['V', ' ']:  # Count both valid and empty state measurements
                         current_rain += float(lecture.get('valor', 0))
                 
                 logger.info(f"Meteocat reports today's rain: {current_rain:.2f}mm")
