@@ -450,7 +450,8 @@ def get_barcelona_rain():
         need_meteocat_update = (
             is_raining or  # It's raining
             not rain_cache['data'] or  # No cache data
-            (rain_cache['data'] and rain_cache['data'].get('station_name') == 'OpenWeatherMap Barcelona')  # Currently using OpenWeather
+            (rain_cache['data'] and rain_cache['data'].get('station_name') == 'OpenWeatherMap Barcelona') or  # Currently using OpenWeather
+            (rain_cache['last_update'] and rain_cache['last_update'].date() < now.date())  # Cache is from a previous day
         )
 
         if need_meteocat_update:
