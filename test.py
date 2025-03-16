@@ -20,7 +20,7 @@ url_consum = 'https://api.meteo.cat/quotes/v1/consum-actual'
 
 url_update_14mar25 = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/03/14?codiEstacio=D5'
 
-response = requests.get(url_fabra_prec, headers={"Content-Type": "application/json", "X-Api-Key": key})
+response = requests.get(url_consum, headers={"Content-Type": "application/json", "X-Api-Key": key})
 
 print(response.status_code)  #statusCode
 print(response.text) #valors de la resposta

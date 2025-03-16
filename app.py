@@ -453,6 +453,11 @@ def get_barcelona_rain():
             (rain_cache['data'] and rain_cache['data'].get('station_name') == 'OpenWeatherMap Barcelona') or  # Currently using OpenWeather
             (rain_cache['last_update'] and rain_cache['last_update'].date() < now.date())  # Cache is from a previous day
         )
+        logger.info(f"Need Meteocat update: {need_meteocat_update}")
+        logger.info(f"Is raining: {is_raining}")
+        logger.info(f"Rain cache data: {rain_cache['data']}")
+        logger.info(f"Rain cache last update: {rain_cache['last_update'].date()}")
+        logger.info(f"Now is: {now.date()}") 
 
         if need_meteocat_update:
             try:
