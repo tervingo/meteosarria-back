@@ -82,6 +82,21 @@ def live_weather():
         max_temp = round(max(today_temps), 1) if today_temps else None
         min_temp = round(min(today_temps), 1) if today_temps else None
 
+        BCN_LAT = 41.389
+        BCN_LON = 2.159
+                # First check if it's raining using OpenWeather's current weather
+        OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
+        if not OPENWEATHER_API_KEY:
+            error_msg = "OpenWeatherMap API key not configured"
+            logger.error(error_msg)
+            return jsonify({'error': error_msg}), 500
+        
+        owm_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BCN_LAT}&lon={BCN_LON}&units=metric&appid={OPENWEATHER_API_KEY}&lang=es'
+        response = requests.get(owm_url)
+        response.raise_for_status()
+        owm_data = response.json()
+
+ 
         live_data = {
             "external_temperature": get_meteohub_parameter("ext_temp"),
             "max_temperature": max_temp,
@@ -96,6 +111,8 @@ def live_weather():
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
             "uv_index": get_meteohub_parameter("uv"),
+            # icon taken from openweathermap    
+            "icon": owm_data['weather'][0]['icon']
         }
 
         if any(value is None for value in live_data.values()):
