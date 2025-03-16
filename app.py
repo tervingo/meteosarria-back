@@ -398,22 +398,31 @@ def debug_last_records():
 @app.route('/api/barcelona-rain')
 def get_barcelona_rain():
     try:
-        logger.info("barcelona-rain endpoint called")
+        logger.info("************ barcelona-rain endpoint called ************")
         
-        # Check if we have valid cached data
+        # Get current time in Madrid timezone
         now = datetime.now(pytz.timezone('Europe/Madrid'))
-        if rain_cache['data'] and rain_cache['last_update']:
-            time_since_update = now - rain_cache['last_update']
-            if time_since_update < rain_cache['cache_duration']:
-                logger.info("Returning cached rain data")
-                return jsonify(rain_cache['data'])
 
-        # Get OpenWeatherMap API key from environment
+        # First check if it's raining using OpenWeather's current weather
         OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
         if not OPENWEATHER_API_KEY:
             error_msg = "OpenWeatherMap API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
+
+        BARCELONA_LAT = 41.389
+        BARCELONA_LON = 2.159
+        current_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}'
+        
+        try:
+            response = requests.get(current_url)
+            response.raise_for_status()
+            current_data = response.json()
+            is_raining = current_data.get('rain', {}).get('1h', 0) > 0
+            logger.info(f"OpenWeather reports rain in last hour: {is_raining}")
+        except Exception as e:
+            logger.error(f"Error getting current weather data: {e}")
+            is_raining = False
 
         # Get last accumulation record from MongoDB
         last_record = db.rain_accumulation.find_one(sort=[("date", -1)])
@@ -425,27 +434,6 @@ def get_barcelona_rain():
         accumulated_rain = last_record['accumulated']
         logger.info(f"Found accumulated rain until {last_record['date']}: {accumulated_rain:.2f}mm")
 
-        # Get current day's precipitation from OpenWeatherMap
-        BARCELONA_LAT = 41.389
-        BARCELONA_LON = 2.159
-        
-        # First check if it's raining using OpenWeather's current weather
-        current_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}'
-        try:
-            response = requests.get(current_url)
-            response.raise_for_status()
-            current_data = response.json()
-            is_raining = current_data.get('rain', {}).get('1h', 0) > 0
-            logger.info(f"OpenWeather reports rain in last hour: {is_raining}")
-        except Exception as e:
-            logger.error(f"Error getting current weather data: {e}")
-            is_raining = False
-
-        # Get today's date for Meteocat API
-        today_str = now.strftime('%Y-%m-%d')
-        current_rain = 0
-        using_meteocat = False
-
         # Check if we need to update Meteocat data
         need_meteocat_update = (
             is_raining or  # It's raining
@@ -453,13 +441,14 @@ def get_barcelona_rain():
             (rain_cache['data'] and rain_cache['data'].get('station_name') == 'OpenWeatherMap Barcelona') or  # Currently using OpenWeather
             (rain_cache['last_update'] and rain_cache['last_update'].date() < now.date())  # Cache is from a previous day
         )
-        logger.info(f"Need Meteocat update: {need_meteocat_update}")
-        logger.info(f"Is raining: {is_raining}")
-        logger.info(f"Rain cache data: {rain_cache['data']}")
-        logger.info(f"Rain cache last update: {rain_cache['last_update']}")
-        logger.info(f"Now is: {now}") 
 
         if need_meteocat_update:
+            logger.info("Updating Meteocat data because: " + 
+                       ("it's raining" if is_raining else "") +
+                       ("no cache data" if not rain_cache['data'] else "") +
+                       ("using OpenWeather" if rain_cache['data'] and rain_cache['data'].get('station_name') == 'OpenWeatherMap Barcelona' else "") +
+                       ("cache from previous day" if rain_cache['last_update'] and rain_cache['last_update'].date() < now.date() else ""))
+            
             try:
                 # Get Meteocat API key
                 METEOCAT_API_KEY = os.getenv('METEOCAT_API_KEY')
@@ -484,6 +473,7 @@ def get_barcelona_rain():
                 data = response.json()
                 
                 # Sum all precipitation values for each half-hour interval
+                current_rain = 0.0
                 for lecture in data.get('lectures', []):
                     if lecture.get('estat') in ['V', ' ']:  # Count both valid and empty state measurements
                         current_rain += float(lecture.get('valor', 0))
@@ -493,11 +483,13 @@ def get_barcelona_rain():
             except Exception as e:
                 logger.error(f"Error getting Meteocat data: {e}")
                 # If Meteocat fails, fall back to OpenWeather data
+                today_str = now.strftime('%Y-%m-%d')
                 current_url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={today_str}&appid={OPENWEATHER_API_KEY}'
                 response = requests.get(current_url)
                 response.raise_for_status()
                 data = response.json()
                 current_rain = data.get('precipitation', {}).get('total', 0)
+                using_meteocat = False
                 logger.info(f"Falling back to OpenWeather data: {current_rain:.2f}mm")
         else:
             # If not raining and we have Meteocat data, use cached data
@@ -520,8 +512,8 @@ def get_barcelona_rain():
         # Update cache with dynamic duration
         rain_cache['data'] = response_data
         rain_cache['last_update'] = now
-        # If it's raining, cache for 1 hour, otherwise for 6 hours
-        rain_cache['cache_duration'] = timedelta(hours=1) if is_raining else timedelta(hours=6)
+        # If it's raining, cache for 20 minutes, otherwise for 1 hour
+        rain_cache['cache_duration'] = timedelta(minutes=20) if is_raining else timedelta(hours=1)
         
         logger.info(f"Updated cache with new rain data. Cache duration: {rain_cache['cache_duration']}")
         return jsonify(response_data)
