@@ -456,8 +456,8 @@ def get_barcelona_rain():
         logger.info(f"Need Meteocat update: {need_meteocat_update}")
         logger.info(f"Is raining: {is_raining}")
         logger.info(f"Rain cache data: {rain_cache['data']}")
-        logger.info(f"Rain cache last update: {rain_cache['last_update'].date()}")
-        logger.info(f"Now is: {now.date()}") 
+        logger.info(f"Rain cache last update: {rain_cache['last_update']}")
+        logger.info(f"Now is: {now}") 
 
         if need_meteocat_update:
             try:
