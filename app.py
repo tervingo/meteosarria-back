@@ -111,7 +111,8 @@ def live_weather():
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
             "uv_index": get_meteohub_parameter("uv"),
-            # icon taken from openweathermap    
+            # description and icon taken from openweathermap    
+            'description': owm_data['weather'][0]['description'],
             "icon": owm_data['weather'][0]['icon']
         }
 
