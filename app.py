@@ -11,9 +11,13 @@ from typing import Dict, Any, Tuple, Optional
 import time
 import json
 from datetime import timezone
+from googletrans import Translator
 
 app = Flask(__name__)
 CORS(app)
+
+# Initialize Google Translate
+translator = Translator()
 
 # Configuración para la API de Burgos Villafría
 AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
@@ -105,20 +109,14 @@ def live_weather():
         overview_response.raise_for_status()
         overview_data = overview_response.json()
 
-        # Translate weather overview to Spanish using LibreTranslate
+        # Translate weather overview to Spanish using Google Translate
         weather_overview = overview_data.get('weather_overview', '')
         if weather_overview:
             try:
-                translate_url = 'https://libretranslate.de/translate'
-                translate_payload = {
-                    'q': weather_overview,
-                    'source': 'en',
-                    'target': 'es',
-                    'format': 'text'
-                }
-                translate_response = requests.post(translate_url, json=translate_payload)
-                translate_response.raise_for_status()
-                translated_overview = translate_response.json().get('translatedText', weather_overview)
+                # Translate using Google Translate
+                translation = translator.translate(weather_overview, src='en', dest='es')
+                translated_overview = translation.text
+                logger.info(f"Translated weather overview: {translated_overview}")
             except Exception as e:
                 logger.error(f"Error translating weather overview: {e}")
                 translated_overview = weather_overview
