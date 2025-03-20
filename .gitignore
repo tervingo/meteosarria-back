@@ -4,4 +4,4 @@ node_modules/
 update_rain.log
 owm.txt
 test.py
-
+/credentials

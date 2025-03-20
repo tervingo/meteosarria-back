@@ -11,13 +11,26 @@ from typing import Dict, Any, Tuple, Optional
 import time
 import json
 from datetime import timezone
-from googletrans import Translator
+from google.cloud import translate_v2 as translate
+import tempfile
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize Google Translate
-translator = Translator()
+# Initialize Google Cloud Translation with credentials from environment variable
+credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+if credentials_json:
+    # Create a temporary file with the credentials
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        f.write(credentials_json)
+        temp_credentials_path = f.name
+    
+    # Set the environment variable to point to the temporary file
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_credentials_path
+    translate_client = translate.Client()
+else:
+    logger.error("Google Cloud credentials not found in environment variables")
+    translate_client = None
 
 # Configuración para la API de Burgos Villafría
 AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
@@ -109,14 +122,23 @@ def live_weather():
         overview_response.raise_for_status()
         overview_data = overview_response.json()
 
-        # Translate weather overview to Spanish using Google Translate
+        # Translate weather overview to Spanish using Google Cloud Translation
         weather_overview = overview_data.get('weather_overview', '')
         if weather_overview:
             try:
-                # Translate using Google Translate
-                translation = translator.translate(weather_overview, src='en', dest='es')
-                translated_overview = translation.text
-                logger.info(f"Translated weather overview: {translated_overview}")
+                if translate_client:
+                    # Translate using Google Cloud Translation
+                    result = translate_client.translate(
+                        weather_overview,
+                        target_language='es',
+                        source_language='en'
+                    )
+                    translated_overview = result['translatedText']
+                    logger.info(f"Translated weather overview: {translated_overview}")
+                else:
+                    # Fallback to OpenWeather description if translation is not available
+                    translated_overview = owm_data['weather'][0]['description']
+                    logger.warning("Translation service not available, using OpenWeather description")
             except Exception as e:
                 logger.error(f"Error translating weather overview: {e}")
                 translated_overview = weather_overview
