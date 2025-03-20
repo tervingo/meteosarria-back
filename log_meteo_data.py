@@ -29,7 +29,7 @@ def log_weather_data():
             "external_temperature": get_meteohub_parameter("ext_temp"),
             "internal_temperature": get_meteohub_parameter("int_temp"),
             "humidity": get_meteohub_parameter("hum"),
-            "pressure": get_meteohub_parameter("press"),
+            "pressure": get_meteohub_parameter("sea_press"),
             "wind_speed": get_meteohub_parameter("wind_speed"),
             "wind_direction": get_meteohub_parameter("wind_dir"),
             "current_rain_rate": get_meteohub_parameter("cur_rain"),
