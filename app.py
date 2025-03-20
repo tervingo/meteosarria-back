@@ -9,6 +9,8 @@ import pytz
 import requests
 from typing import Dict, Any, Tuple, Optional
 import time
+import json
+from datetime import timezone
 
 app = Flask(__name__)
 CORS(app)
@@ -430,17 +432,26 @@ def get_barcelona_rain():
 
         BARCELONA_LAT = 41.389
         BARCELONA_LON = 2.159
-        current_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}'
+        current_url = f'https://api.openweathermap.org/data/3.0/onecall?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&appid={OPENWEATHER_API_KEY}&exclude=minutely,daily,alerts&units=metric'
         
         try:
             response = requests.get(current_url)
             response.raise_for_status()
             current_data = response.json()
-            is_raining = current_data.get('rain', {}).get('1h', 0) > 0
-            logger.info(f"OpenWeather reports rain in last hour: {is_raining}")
+            
+            # Check if it's raining in the current hour
+            current_hour_rain = current_data.get('hourly', [{}])[0].get('rain', {}).get('1h', 0)
+            is_raining = current_hour_rain > 0
+            logger.info(f"OpenWeather reports rain in current hour: {current_hour_rain}mm")
+            
+            # Get today's total rain from hourly data
+            today_rain = sum(hour.get('rain', {}).get('1h', 0) for hour in current_data.get('hourly', []))
+            logger.info(f"OpenWeather reports total rain today: {today_rain}mm")
+            
         except Exception as e:
             logger.error(f"Error getting current weather data: {e}")
             is_raining = False
+            today_rain = 0
 
         # Get last accumulation record from MongoDB
         last_record = db.rain_accumulation.find_one(sort=[("date", -1)])
@@ -490,6 +501,15 @@ def get_barcelona_rain():
                 response.raise_for_status()
                 data = response.json()
                 
+                # Pretty print the response for debugging
+                logger.info("Meteocat API Response:")
+                logger.info(json.dumps(data, indent=2, ensure_ascii=False))
+                
+                # Process data
+                if not data or 'lectures' not in data:
+                    logger.error("No data or 'lectures' key not found in response")
+                    return None
+                
                 # Sum all precipitation values for each half-hour interval
                 current_rain = 0.0
                 for lecture in data.get('lectures', []):
@@ -500,13 +520,8 @@ def get_barcelona_rain():
                 using_meteocat = True
             except Exception as e:
                 logger.error(f"Error getting Meteocat data: {e}")
-                # If Meteocat fails, fall back to OpenWeather data
-                today_str = now.strftime('%Y-%m-%d')
-                current_url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={BARCELONA_LAT}&lon={BARCELONA_LON}&date={today_str}&appid={OPENWEATHER_API_KEY}'
-                response = requests.get(current_url)
-                response.raise_for_status()
-                data = response.json()
-                current_rain = data.get('precipitation', {}).get('total', 0)
+                # If Meteocat fails, use OpenWeather data we already have
+                current_rain = today_rain
                 using_meteocat = False
                 logger.info(f"Falling back to OpenWeather data: {current_rain:.2f}mm")
         else:
