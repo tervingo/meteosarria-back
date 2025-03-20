@@ -154,7 +154,7 @@ def live_weather():
             "wind_direction": get_meteohub_parameter("wind_dir"),
             "wind_speed": get_meteohub_parameter("wind_speed"),
             "gust_speed": get_meteohub_parameter("gust_speed"),
-            "pressure": get_meteohub_parameter("press"),
+            "pressure": get_meteohub_parameter("sea_press"),
             "current_rain_rate": get_meteohub_parameter("cur_rain"),
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
