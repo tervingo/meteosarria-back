@@ -86,18 +86,44 @@ def live_weather():
 
         BCN_LAT = 41.389
         BCN_LON = 2.159
-                # First check if it's raining using OpenWeather's current weather
+        # First check if it's raining using OpenWeather's current weather
         OPENWEATHER_API_KEY = os.getenv('OPENWEATHER_API_KEY')
         if not OPENWEATHER_API_KEY:
             error_msg = "OpenWeatherMap API key not configured"
             logger.error(error_msg)
             return jsonify({'error': error_msg}), 500
         
+        # Get current weather data
         owm_url = f'https://api.openweathermap.org/data/2.5/weather?lat={BCN_LAT}&lon={BCN_LON}&units=metric&appid={OPENWEATHER_API_KEY}&lang=es'
         response = requests.get(owm_url)
         response.raise_for_status()
         owm_data = response.json()
 
+        # Get weather overview
+        overview_url = f'https://api.openweathermap.org/data/3.0/onecall/overview?lon={BCN_LON}&lat={BCN_LAT}&units=metric&appid={OPENWEATHER_API_KEY}'
+        overview_response = requests.get(overview_url)
+        overview_response.raise_for_status()
+        overview_data = overview_response.json()
+
+        # Translate weather overview to Spanish using LibreTranslate
+        weather_overview = overview_data.get('weather_overview', '')
+        if weather_overview:
+            try:
+                translate_url = 'https://libretranslate.de/translate'
+                translate_payload = {
+                    'q': weather_overview,
+                    'source': 'en',
+                    'target': 'es',
+                    'format': 'text'
+                }
+                translate_response = requests.post(translate_url, json=translate_payload)
+                translate_response.raise_for_status()
+                translated_overview = translate_response.json().get('translatedText', weather_overview)
+            except Exception as e:
+                logger.error(f"Error translating weather overview: {e}")
+                translated_overview = weather_overview
+        else:
+            translated_overview = owm_data['weather'][0]['description']
  
         live_data = {
             "external_temperature": get_meteohub_parameter("ext_temp"),
@@ -113,7 +139,7 @@ def live_weather():
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
             "uv_index": get_meteohub_parameter("uv"),
-            # description and icon taken from openweathermap    
+            'resumen': translated_overview,
             'description': owm_data['weather'][0]['description'],
             "icon": owm_data['weather'][0]['icon']
         }
