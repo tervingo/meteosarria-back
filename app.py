@@ -79,6 +79,10 @@ def clear_rain_cache():
     }
     logger.info("Rain cache cleared")
 
+#-----------------------
+# api/live
+#-----------------------
+
 @app.route('/api/live')
 def live_weather():
     try:
