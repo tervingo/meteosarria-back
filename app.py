@@ -423,6 +423,35 @@ def get_burgos_weather():
         response.raise_for_status()
         data = response.json()
 
+                # Get weather overview
+        overview_url = f'https://api.openweathermap.org/data/3.0/onecall/overview?lon={BURGOS_LON}&lat={BURGOS_LAT}&units=metric&appid={OPENWEATHER_API_KEY}'
+        overview_response = requests.get(overview_url)
+        overview_response.raise_for_status()
+        overview_data = overview_response.json()
+
+        # Translate weather overview to Spanish using Google Cloud Translation
+        weather_overview = overview_data.get('weather_overview', '')
+        if weather_overview:
+            try:
+                if translate_client:
+                    # Translate using Google Cloud Translation
+                    result = translate_client.translate(
+                        weather_overview,
+                        target_language='es',
+                        source_language='en'
+                    )
+                    translated_overview = result['translatedText']
+                    logger.info(f"Translated weather overview: {translated_overview}")
+                else:
+                    # Fallback to OpenWeather description if translation is not available
+                    translated_overview = owm_data['weather'][0]['description']
+                    logger.warning("Translation service not available, using OpenWeather description")
+            except Exception as e:
+                logger.error(f"Error translating weather overview: {e}")
+                translated_overview = weather_overview
+        else:
+            translated_overview = owm_data['weather'][0]['description']
+
         weather_data = {
             'temperature': data['main']['temp'],
             'humidity': data['main']['humidity'],
@@ -431,6 +460,7 @@ def get_burgos_weather():
             'windDirection': data['wind']['deg'],
             'description': data['weather'][0]['description'],
             'icon': data['weather'][0]['icon'],
+            'resumen': translated_overview,
             'timestamp': data['dt']
         }
 
