@@ -660,19 +660,15 @@ def convert_spanish_decimal(value: str) -> float:
     except (ValueError, TypeError):
         return 0.0
     
-@app.route('/api/radar/<tipo>', methods=['GET'])
-def obtener_radar(tipo):
+@app.route('/api/radar/peninsula', methods=['GET'])
+def obtener_radar_peninsula():
     """
-    Obtiene datos del radar meteorológico de AEMET.
+    Obtiene datos del radar meteorológico de la Península de AEMET.
     
-    :param tipo: Tipo de radar ('nacional' o código de región)
     :return: JSON con la URL de la imagen del radar y metadatos
     """
-    if tipo == 'nacional':
-        endpoint = f"{AEMET_BASE_URL}/red/radar/nacional"
-    else:
-        # Para radar regional: an (Andalucía), cc (Centro), va (Valencia), etc.
-        endpoint = f"{AEMET_BASE_URL}/red/radar/regional/{tipo}"
+    # Utilizamos el radar regional para la península
+    endpoint = f"{AEMET_BASE_URL}/red/radar/regional/pe"
     
     try:
         # Realizar petición a la API de AEMET
@@ -735,24 +731,7 @@ def obtener_radar(tipo):
         logger.exception("Error inesperado")
         return jsonify({'error': f'Error inesperado: {str(e)}'}), 500
 
-@app.route('/api/radar/regiones', methods=['GET'])
-def obtener_regiones():
-    """
-    Devuelve la lista de códigos de región disponibles para radares regionales
-    """
-    # Esta información podría obtenerse dinámicamente de AEMET si proporcionan un endpoint para ello
-    regiones = {
-        'an': 'Andalucía',
-        'ca': 'Cantábrico',
-        'cc': 'Centro',
-        'va': 'Valencia',
-        'ba': 'Baleares',
-        'ca': 'Canarias',
-        'pe': 'Península'
-        # Añadir otras regiones según documentación de AEMET
-    }
-    
-    return jsonify(regiones)
+
 
 @app.route('/api/radar/estado', methods=['GET'])
 def verificar_estado():
