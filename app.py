@@ -34,6 +34,7 @@ else:
 
 # Configuración para la API de Burgos Villafría
 AEMET_API_KEY = os.getenv('AEMET_API_KEY', "TU_API_KEY_AQUI")
+AEMET_BASE_URL = "https://opendata.aemet.es/opendata/api"
 BURGOS_STATION_ID = "2331"  # ID de la estación de Burgos/Villafría
 BASE_URL = "https://opendata.aemet.es/opendata/api"
 
@@ -658,6 +659,130 @@ def convert_spanish_decimal(value: str) -> float:
         return float(str(value).replace(',', '.'))
     except (ValueError, TypeError):
         return 0.0
+    
+@app.route('/api/radar/<tipo>', methods=['GET'])
+def obtener_radar(tipo):
+    """
+    Obtiene datos del radar meteorológico de AEMET.
+    
+    :param tipo: Tipo de radar ('nacional' o código de región)
+    :return: JSON con la URL de la imagen del radar y metadatos
+    """
+    if tipo == 'nacional':
+        endpoint = f"{AEMET_BASE_URL}/red/radar/nacional"
+    else:
+        # Para radar regional: an (Andalucía), cc (Centro), va (Valencia), etc.
+        endpoint = f"{AEMET_BASE_URL}/red/radar/regional/{tipo}"
+    
+    try:
+        # Realizar petición a la API de AEMET
+        params = {'api_key': AEMET_API_KEY}
+        response = requests.get(endpoint, params=params)
+        
+        # Comprobar si la petición fue exitosa
+        if response.status_code != 200:
+            logger.error(f"Error en la petición a AEMET: {response.status_code}, {response.text}")
+            return jsonify({
+                'error': 'Error al obtener datos del radar',
+                'status': response.status_code
+            }), response.status_code
+        
+        # La API de AEMET devuelve una URL donde se encuentran los datos reales
+        data = response.json()
+        
+        if 'datos' not in data:
+            logger.error(f"Respuesta inesperada de AEMET: {data}")
+            return jsonify({'error': 'Formato de respuesta inesperado'}), 500
+        
+        # Obtener los datos reales (normalmente una imagen o un JSON con la URL de la imagen)
+        datos_response = requests.get(data['datos'])
+        
+        if datos_response.status_code != 200:
+            logger.error(f"Error al obtener datos de la URL proporcionada: {datos_response.status_code}")
+            return jsonify({'error': 'Error al obtener la imagen del radar'}), datos_response.status_code
+        
+        # Si la respuesta es una imagen directamente
+        if 'image' in datos_response.headers.get('Content-Type', ''):
+            # En una implementación real, podrías almacenar esta imagen temporalmente
+            # y devolver su URL, o convertirla a base64
+            return jsonify({
+                'tipo': 'imagen',
+                'formato': datos_response.headers.get('Content-Type'),
+                'url': data['datos'],  # URL directa para que el frontend la use
+                'timestamp': datetime.now().isoformat()
+            })
+        
+        # Si la respuesta es JSON con metadatos
+        try:
+            metadatos = datos_response.json()
+            return jsonify({
+                'tipo': 'json',
+                'datos': metadatos,
+                'timestamp': datetime.now().isoformat()
+            })
+        except:
+            # Si no es JSON ni una imagen reconocible, devolvemos la URL directa
+            return jsonify({
+                'tipo': 'desconocido',
+                'url': data['datos'],
+                'timestamp': datetime.now().isoformat()
+            })
+            
+    except requests.RequestException as e:
+        logger.exception("Error en la conexión con la API de AEMET")
+        return jsonify({'error': f'Error de conexión: {str(e)}'}), 500
+    except Exception as e:
+        logger.exception("Error inesperado")
+        return jsonify({'error': f'Error inesperado: {str(e)}'}), 500
+
+@app.route('/api/radar/regiones', methods=['GET'])
+def obtener_regiones():
+    """
+    Devuelve la lista de códigos de región disponibles para radares regionales
+    """
+    # Esta información podría obtenerse dinámicamente de AEMET si proporcionan un endpoint para ello
+    regiones = {
+        'an': 'Andalucía',
+        'ca': 'Cantábrico',
+        'cc': 'Centro',
+        'va': 'Valencia',
+        'ba': 'Baleares',
+        'ca': 'Canarias',
+        'pe': 'Península'
+        # Añadir otras regiones según documentación de AEMET
+    }
+    
+    return jsonify(regiones)
+
+@app.route('/api/radar/estado', methods=['GET'])
+def verificar_estado():
+    """
+    Verifica la conectividad con la API de AEMET
+    """
+    try:
+        response = requests.get(f"{AEMET_BASE_URL}/red/radar/nacional", 
+                               params={'api_key': AEMET_API_KEY})
+        
+        if response.status_code == 200:
+            return jsonify({
+                'estado': 'OK',
+                'mensaje': 'Conexión con AEMET establecida correctamente',
+                'timestamp': datetime.now().isoformat()
+            })
+        else:
+            return jsonify({
+                'estado': 'ERROR',
+                'mensaje': f'Error de conexión con AEMET: {response.status_code}',
+                'timestamp': datetime.now().isoformat()
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'estado': 'ERROR',
+            'mensaje': f'Error al verificar estado: {str(e)}',
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
