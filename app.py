@@ -684,7 +684,7 @@ def obtener_radar_peninsula():
         })
     
     # Utilizamos el radar regional para la península
-    endpoint = f"{AEMET_BASE_URL}/red/radar/regional/pe"
+    endpoint = f"{AEMET_BASE_URL}/red/radar/nacional"
     
     try:
         # Realizar petición a la API de AEMET
