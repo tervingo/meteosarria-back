@@ -79,26 +79,6 @@ def clear_rain_cache():
     logger.info("Rain cache cleared")
 
 
-#---------------------------
-# Debug
-#---------------------------
-
-@app.route('/api/debug/last-records')
-def debug_last_records():
-    try:
-        # Obtener los últimos 5 registros
-        last_records = list(collection.find().sort("timestamp", -1).limit(5))
-        
-        # Convertir ObjectId a string
-        for record in last_records:
-            record["_id"] = str(record["_id"])
-            
-        return jsonify({
-            "count": len(last_records),
-            "records": last_records
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/barcelona-rain')
 def get_barcelona_rain():

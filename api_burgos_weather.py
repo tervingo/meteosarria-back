@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 import logging
 import os
 import requests
+import tempfile
 from google.cloud import translate_v2 as translate
 
 # Configure logging
