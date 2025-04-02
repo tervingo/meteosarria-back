@@ -4,7 +4,7 @@ import json
  
 key = 'd15t0xP0P17bLjSpV7Ecd9snECW0ivtEpWIBpXxf'
 url_fabra = 'https://api.meteo.cat/xema/v1/estacions/mesurades/D5/2025/03/20'
-url_fabra_prec = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/03/21?codiEstacio=D5'
+url_fabra_prec = 'https://api.meteo.cat/xema/v1/variables/mesurades/35/2025/04/02?codiEstacio=D5'
  
 url_meses = 'https://api.meteo.cat/xema/v1/estacions/mesures/D5/35/20250101/20250131'
 url_vbles = 'https://api.meteo.cat/xema/v1/representatives/metadades/variables'

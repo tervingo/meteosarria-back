@@ -589,16 +589,19 @@ def get_barcelona_rain():
                 # Process data
                 if not data or 'lectures' not in data:
                     logger.error("No data or 'lectures' key not found in response")
-                    return None
-                
-                # Sum all precipitation values for each half-hour interval
-                current_rain = 0.0
-                for lecture in data.get('lectures', []):
-                    if lecture.get('estat') in ['V', ' ']:  # Count both valid and empty state measurements
-                        current_rain += float(lecture.get('valor', 0))
-                
-                logger.info(f"Meteocat reports today's rain: {current_rain:.2f}mm")
-                using_meteocat = True
+                    # Fall back to OpenWeather data we already have
+                    current_rain = today_rain
+                    using_meteocat = False
+                    logger.info(f"Falling back to OpenWeather data: {current_rain:.2f}mm")
+                else:
+                    # Sum all precipitation values for each half-hour interval
+                    current_rain = 0.0
+                    for lecture in data.get('lectures', []):
+                        if lecture.get('estat') in ['V', ' ']:  # Count both valid and empty state measurements
+                            current_rain += float(lecture.get('valor', 0))
+                    
+                    logger.info(f"Meteocat reports today's rain: {current_rain:.2f}mm")
+                    using_meteocat = True
             except Exception as e:
                 logger.error(f"Error getting Meteocat data: {e}")
                 # If Meteocat fails, use OpenWeather data we already have
