@@ -23,6 +23,12 @@ def obtener_radar_peninsula():
     
     :return: JSON con la URL de la imagen del radar y metadatos
     """
+
+    # Get AEMET API key
+    AEMET_API_KEY = os.getenv('AEMET_API_KEY')
+    if not AEMET_API_KEY:
+        raise ValueError("AEMET API key not configured")
+
     # En modo desarrollo sin API key, devolver una URL de muestra
     if DEVELOPMENT_MODE and not AEMET_API_KEY:
         logger.info("Usando URL de radar de muestra para desarrollo")
