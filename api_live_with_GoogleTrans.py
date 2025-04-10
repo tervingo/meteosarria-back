@@ -5,6 +5,8 @@ import pytz
 from datetime import datetime
 import requests
 from livedata import get_meteohub_parameter
+from google.cloud import translate_v2 as translate
+import tempfile
 from database import collection  # Import collection from database module
 
 # Configure logging
@@ -14,7 +16,20 @@ logger = logging.getLogger(__name__)
 # Create Blueprint
 live_bp = Blueprint('live', __name__)
 
-
+# Initialize Google Cloud Translation with credentials from environment variable
+credentials_json = os.getenv('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+if credentials_json:
+    # Create a temporary file with the credentials
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+        f.write(credentials_json)
+        temp_credentials_path = f.name
+    
+    # Set the environment variable to point to the temporary file
+    os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = temp_credentials_path
+    translate_client = translate.Client()
+else:
+    logger.error("Google Cloud credentials not found in environment variables")
+    translate_client = None
 
 @live_bp.route('/api/live')
 def live_weather():
@@ -57,6 +72,30 @@ def live_weather():
         overview_url = f'https://api.openweathermap.org/data/3.0/onecall/overview?lon={BCN_LON}&lat={BCN_LAT}&units=metric&appid={OPENWEATHER_API_KEY}'
         overview_response = requests.get(overview_url)
         overview_response.raise_for_status()
+        overview_data = overview_response.json()
+
+        # Translate weather overview to Spanish using Google Cloud Translation
+        weather_overview = overview_data.get('weather_overview', '')
+        if weather_overview:
+            try:
+                if translate_client:
+                    # Translate using Google Cloud Translation
+                    result = translate_client.translate(
+                        weather_overview,
+                        target_language='es',
+                        source_language='en'
+                    )
+                    translated_overview = result['translatedText']
+                    logger.info(f"Translated weather overview: {translated_overview}")
+                else:
+                    # Fallback to OpenWeather description if translation is not available
+                    translated_overview = owm_data['weather'][0]['description']
+                    logger.warning("Translation service not available, using OpenWeather description")
+            except Exception as e:
+                logger.error(f"Error translating weather overview: {e}")
+                translated_overview = weather_overview
+        else:
+            translated_overview = owm_data['weather'][0]['description']
  
         live_data = {
             "external_temperature": get_meteohub_parameter("ext_temp"),
@@ -72,6 +111,7 @@ def live_weather():
             "total_rain": get_meteohub_parameter("total_rain"),
             "solar_radiation": get_meteohub_parameter("rad"),
             "uv_index": get_meteohub_parameter("uv"),
+            'resumen': translated_overview,
             'description': owm_data['weather'][0]['description'],
             "icon": owm_data['weather'][0]['icon']
         }
