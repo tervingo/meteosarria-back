@@ -34,7 +34,7 @@ def get_burgos_weather():
         day_summary_url = f"https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}"
 
         # URL para obtener los datos actuales
-        current_url = f"https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}"
+        current_url = f"https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}&lang=es"
 
         # Hacer las dos llamadas en paralelo
         day_summary_response = requests.get(day_summary_url)
