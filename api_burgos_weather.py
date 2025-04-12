@@ -54,6 +54,7 @@ def get_burgos_weather():
             "humidity": current_data["main"]["humidity"],
             "pressure": current_data["main"]["pressure"],
             "wind_speed": current_data["wind"]["speed"],
+            "wind_direction": current_data["wind"]["deg"],
             "weather_overview": current_data["weather"][0]["description"],
             "day_rain": day_summary_data.get("precipitation", {}).get("total", 0),
             "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp"]),

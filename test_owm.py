@@ -64,7 +64,9 @@ def get_current_precipitation():
         return 0
 
 def get_burgos_data(date_str):
-    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'
+#    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'
+    url = f'https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}'
+
     response = requests.get(url)
     return response.json()
 
