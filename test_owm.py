@@ -9,6 +9,10 @@ api_key = "79ee2029b909eee75c80d8ee9371e8e3"
 lat = 41.3874
 lon = 2.1686
 
+# Coordenadas de Burgos
+burgos_lat = 42.3439
+burgos_lon = -3.6970
+
 # Fechas para el cálculo
 start_date = datetime(2025, 1, 1)
 today = datetime(2025, 3, 14)  # Fecha actual
@@ -59,11 +63,16 @@ def get_current_precipitation():
         print(f"Error al procesar datos actuales: {e}")
         return 0
 
+def get_burgos_data(date_str):
+    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'
+    response = requests.get(url)
+    return response.json()
+
 # Calcular precipitación acumulada histórica
 total_precipitation = 0
 current_date = start_date
 
-print("Obteniendo datos de precipitación históricos...")
+""" print("Obteniendo datos de precipitación históricos...")
 while current_date <= yesterday:
     daily_precipitation = get_daily_precipitation(current_date)
     print(f"Fecha: {current_date.strftime('%Y-%m-%d')}, Precipitación: {daily_precipitation:.2f} mm")
@@ -85,3 +94,9 @@ print(f"Precipitación de hoy ({today.strftime('%Y-%m-%d')}): {today_precipitati
 total_precipitation += today_precipitation
 
 print(f"\nPrecipitación total acumulada en Barcelona desde el 1 de enero hasta el {today.strftime('%Y-%m-%d')} de 2025: {total_precipitation:.2f} mm")
+"""
+
+# Obtener datos de Burgos
+burgos_data = get_burgos_data('2025-04-12')
+print(f"Burgos data: {burgos_data}")
+
