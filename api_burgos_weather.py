@@ -4,6 +4,7 @@ import os
 import requests
 from datetime import datetime
 import pytz
+from pymongo import MongoClient
 
 
 # Configure logging
@@ -13,6 +14,19 @@ logger = logging.getLogger(__name__)
 # Create Blueprint
 burgos_bp = Blueprint('burgos', __name__)
 
+# MongoDB connection
+try:
+    mongo_uri = os.getenv("MONGODB_URI")
+    if not mongo_uri:
+        raise ValueError("MONGODB_URI environment variable not set")
+
+    client = MongoClient(mongo_uri)
+    db = client.meteosarria
+    rain_collection = db.burgos_rain_accumulation
+    logger.info("Connected to MongoDB")
+except Exception as e:
+    logger.error(f"Error connecting to MongoDB: {e}")
+    raise
 
 @burgos_bp.route('/api/burgos-weather', methods=['GET'])
 def get_burgos_weather():
@@ -48,6 +62,10 @@ def get_burgos_weather():
         day_summary_data = day_summary_response.json()
         current_data = current_response.json()
 
+        # Obtener el último registro de lluvia acumulada
+        last_rain_record = rain_collection.find_one(sort=[("date", -1)])
+        total_rain = last_rain_record['accumulated'] if last_rain_record else 0
+
         # Estructurar los datos de respuesta
         weather_data = {
             "temperature": current_data["main"]["temp"],
@@ -57,6 +75,7 @@ def get_burgos_weather():
             "wind_direction": current_data["wind"]["deg"],
             "weather_overview": current_data["weather"][0]["description"],
             "day_rain": day_summary_data.get("precipitation", {}).get("total", 0),
+            "total_rain": round(total_rain, 1),
             "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp"]),
             "min_temperature": day_summary_data.get("temperature", {}).get("min", current_data["main"]["temp"]),
             "icon": current_data["weather"][0]["icon"],
