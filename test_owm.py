@@ -64,9 +64,12 @@ def get_current_precipitation():
         return 0
 
 def get_burgos_data(date_str):
-#    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'
-    url = f'https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}'
+    unix_time = int(datetime.strptime(date_str, '%Y-%m-%d').timestamp())
 
+    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'
+#    url = f'https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}'
+    url = f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={burgos_lat}&lon={burgos_lon}&dt={unix_time}&appid={api_key}'
+    
     response = requests.get(url)
     return response.json()
 
@@ -99,6 +102,6 @@ print(f"\nPrecipitación total acumulada en Barcelona desde el 1 de enero hasta 
 """
 
 # Obtener datos de Burgos
-burgos_data = get_burgos_data('2025-04-12')
+burgos_data = get_burgos_data('2025-04-15')
 print(f"Burgos data: {burgos_data}")
 
