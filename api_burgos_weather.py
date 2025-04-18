@@ -44,32 +44,43 @@ def get_burgos_weather():
         # Obtener la fecha actual en formato yyyy-mm-dd
         date_str = datetime.now().strftime('%Y-%m-%d')
 
-        # URL para obtener el resumen diario
+        # URL para obtener el resumen diario (si está disponible)
         day_summary_url = f"https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}"
 
         # URL para obtener los datos actuales
         current_url = f"https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}&lang=es"
         
-        # URL para obtener datos horarios (para precipitación acumulada hoy)
-        hourly_url = f"https://api.openweathermap.org/data/2.5/onecall?lat={burgos_lat}&lon={burgos_lon}&exclude=minutely,daily,alerts&units=metric&appid={api_key}"
+        # URL para obtener el pronóstico de 5 días (con datos cada 3 horas)
+        forecast_url = f"https://api.openweathermap.org/data/2.5/forecast?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}"
 
-        # Hacer las llamadas en paralelo
-        day_summary_response = requests.get(day_summary_url)
+        # Hacer las llamadas a las APIs disponibles
         current_response = requests.get(current_url)
-        hourly_response = requests.get(hourly_url)
-
-        # Verificar si las respuestas son exitosas
-        day_summary_response.raise_for_status()
         current_response.raise_for_status()
-        hourly_response.raise_for_status()
-
-        # Obtener los datos
-        day_summary_data = day_summary_response.json()
         current_data = current_response.json()
-        hourly_data = hourly_response.json()
+        
+        forecast_response = requests.get(forecast_url)
+        forecast_response.raise_for_status()
+        forecast_data = forecast_response.json()
+        
+        # Intentar obtener datos del resumen diario si está disponible
+        day_summary_data = {}
+        try:
+            day_summary_response = requests.get(day_summary_url)
+            if day_summary_response.status_code == 200:
+                day_summary_data = day_summary_response.json()
+        except Exception as e:
+            logger.warning(f"No se pudo obtener el resumen diario: {e}")
 
-        # Calcular la precipitación total del día hasta ahora
-        day_rain = calculate_day_rain(hourly_data)
+        # Calcular la precipitación del día actual usando datos disponibles
+        day_rain = calculate_day_rain_from_forecast(forecast_data)
+        
+        # Si hay datos de lluvia actuales, añadirlos al total
+        if 'rain' in current_data and '1h' in current_data['rain']:
+            current_rain = current_data['rain']['1h']
+            logger.debug(f"Lluvia actual: {current_rain} mm")
+            # Solo sumar si no está ya incluida en los datos de pronóstico
+            if not is_current_hour_in_forecast(forecast_data):
+                day_rain += current_rain
 
         # Obtener el último registro de lluvia acumulada
         last_rain_record = rain_collection.find_one(sort=[("date", -1)])
@@ -85,8 +96,8 @@ def get_burgos_weather():
             "weather_overview": current_data["weather"][0]["description"],
             "day_rain": round(day_rain, 1),  # Usar el valor calculado
             "total_rain": round(total_rain, 1),
-            "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp"]),
-            "min_temperature": day_summary_data.get("temperature", {}).get("min", current_data["main"]["temp"]),
+            "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp_max"]),
+            "min_temperature": day_summary_data.get("temperature", {}).get("min", current_data["main"]["temp_min"]),
             "icon": current_data["weather"][0]["icon"],
             "description": current_data["weather"][0]["description"],
             "timestamp": datetime.now(pytz.UTC).isoformat()
@@ -101,34 +112,45 @@ def get_burgos_weather():
         logger.error(f"Error inesperado: {str(e)}")
         return jsonify({"error": "Error interno del servidor"}), 500
 
-def calculate_day_rain(hourly_data):
+def calculate_day_rain_from_forecast(forecast_data):
     """
     Calcula la precipitación total del día actual (desde las 00:00 hasta ahora)
-    basado en los datos horarios obtenidos de OpenWeatherMap.
+    basado en los datos del pronóstico de 5 días de OpenWeatherMap.
     """
     try:
         total_precipitation = 0
+        today = datetime.now(pytz.UTC).date()
+        current_time = datetime.now(pytz.UTC)
         
-        # Obtener la hora actual y la medianoche de hoy en UTC
-        now = datetime.now(pytz.UTC)
-        start_of_day = datetime.now(pytz.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-        start_timestamp = int(start_of_day.timestamp())
-        
-        # Recorrer datos por hora
-        for hour_data in hourly_data.get('hourly', []):
-            hour_timestamp = hour_data.get('dt', 0)
+        # Recorrer datos del pronóstico
+        for forecast in forecast_data.get('list', []):
+            forecast_time = datetime.fromtimestamp(forecast.get('dt', 0), pytz.UTC)
             
-            # Solo procesar datos desde la medianoche hasta ahora
-            if start_timestamp <= hour_timestamp <= int(now.timestamp()):
-                # La precipitación se guarda en 'rain.1h' si existe
-                rain_data = hour_data.get('rain', {})
-                precipitation = rain_data.get('1h', 0) if isinstance(rain_data, dict) else 0
+            # Solo procesar datos de hoy hasta la hora actual
+            if forecast_time.date() == today and forecast_time <= current_time:
+                # La precipitación se guarda en 'rain.3h' si existe
+                rain_data = forecast.get('rain', {})
+                precipitation = rain_data.get('3h', 0) if isinstance(rain_data, dict) else 0
                 total_precipitation += precipitation
+                logger.debug(f"Precipitación {forecast_time}: {precipitation} mm")
         
-        logger.debug(f"Precipitación calculada hoy: {total_precipitation} mm")
+        logger.debug(f"Precipitación calculada hoy desde pronóstico: {total_precipitation} mm")
         return total_precipitation
         
     except Exception as e:
         logger.error(f"Error al calcular la precipitación diaria: {str(e)}")
-        # En caso de error, intentar usar el valor del resumen diario
         return 0
+
+def is_current_hour_in_forecast(forecast_data):
+    """
+    Verifica si la hora actual está incluida en los datos de pronóstico.
+    """
+    current_hour = datetime.now(pytz.UTC).replace(minute=0, second=0, microsecond=0)
+    current_timestamp = int(current_hour.timestamp())
+    
+    # Buscar en los datos de pronóstico
+    for forecast in forecast_data.get('list', []):
+        if forecast.get('dt') == current_timestamp:
+            return True
+    
+    return False

@@ -71,8 +71,8 @@ def get_burgos_data(date_str):
 #    url = f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={burgos_lat}&lon={burgos_lon}&dt={unix_time}&appid={api_key}'
 #    url = f'https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}'    
     url = f'https://api.openweathermap.org/data/3.0/onecall?lat={burgos_lat}&lon={burgos_lon}&appid={api_key}'
-
-    response = requests.get(url)
+    hourly_url = f"https://api.openweathermap.org/data/2.5/onecall?lat={burgos_lat}&lon={burgos_lon}&exclude=minutely,daily,alerts&units=metric&appid={api_key}"
+    response = requests.get(hourly_url)
     return response.json()
 
 # Calcular precipitación acumulada histórica
