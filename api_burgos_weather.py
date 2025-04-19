@@ -31,9 +31,11 @@ except Exception as e:
 @burgos_bp.route('/api/burgos-weather', methods=['GET'])
 def get_burgos_weather():
     try:
-        # Obtener la API key de OpenWeather
-        api_key = os.getenv('OPENWEATHER_API_KEY')
-        if not api_key:
+        # Obtener las API keys
+        openweather_api_key = os.getenv('OPENWEATHER_API_KEY')
+        weatherbit_api_key = os.getenv('WEATHERBIT_API_KEY')
+
+        if not openweather_api_key:
             logger.error("OPENWEATHER_API_KEY no está configurada")
             return jsonify({"error": "API key no configurada"}), 500
 
@@ -41,50 +43,31 @@ def get_burgos_weather():
         burgos_lat = 42.3500
         burgos_lon = -3.7000
 
-        # Obtener la fecha actual en formato yyyy-mm-dd
-        date_str = datetime.now().strftime('%Y-%m-%d')
+        # URL para obtener los datos actuales de OpenWeather
+        current_url = f"https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={openweather_api_key}&lang=es"
 
-        # URL para obtener el resumen diario (si está disponible)
-        day_summary_url = f"https://api.openweathermap.org/data/3.0/onecall/day_summary?lat={burgos_lat}&lon={burgos_lon}&date={date_str}&units=metric&appid={api_key}"
+        # URL para obtener datos de lluvia de Weatherbit
+        weatherbit_url = f"https://api.weatherbit.io/v2.0/current?city=burgos&country=spain&key={weatherbit_api_key}"
 
-        # URL para obtener los datos actuales
-        current_url = f"https://api.openweathermap.org/data/2.5/weather?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}&lang=es"
-        
-        # URL para obtener el pronóstico de 5 días (con datos cada 3 horas)
-        forecast_url = f"https://api.openweathermap.org/data/2.5/forecast?lat={burgos_lat}&lon={burgos_lon}&units=metric&appid={api_key}"
-
-        # Hacer las llamadas a las APIs disponibles
+        # Hacer las llamadas a las APIs
         current_response = requests.get(current_url)
-        current_response.raise_for_status()
-        current_data = current_response.json()
-        
-        forecast_response = requests.get(forecast_url)
-        forecast_response.raise_for_status()
-        forecast_data = forecast_response.json()
-        
-        # Intentar obtener datos del resumen diario si está disponible
-        day_summary_data = {}
-        try:
-            day_summary_response = requests.get(day_summary_url)
-            if day_summary_response.status_code == 200:
-                day_summary_data = day_summary_response.json()
-        except Exception as e:
-            logger.warning(f"No se pudo obtener el resumen diario: {e}")
+        weatherbit_response = requests.get(weatherbit_url)
 
-        # Calcular la precipitación del día actual usando datos disponibles
-        day_rain = calculate_day_rain_from_forecast(forecast_data)
-        
-        # Si hay datos de lluvia actuales, añadirlos al total
-        if 'rain' in current_data and '1h' in current_data['rain']:
-            current_rain = current_data['rain']['1h']
-            logger.debug(f"Lluvia actual: {current_rain} mm")
-            # Solo sumar si no está ya incluida en los datos de pronóstico
-            if not is_current_hour_in_forecast(forecast_data):
-                day_rain += current_rain
+        # Verificar si las respuestas son exitosas
+        current_response.raise_for_status()
+        weatherbit_response.raise_for_status()
+
+        # Obtener los datos
+        current_data = current_response.json()
+        weatherbit_data = weatherbit_response.json()
 
         # Obtener el último registro de lluvia acumulada
         last_rain_record = rain_collection.find_one(sort=[("date", -1)])
         total_rain = last_rain_record['accumulated'] if last_rain_record else 0
+
+        # Obtener la lluvia del día de Weatherbit
+        day_rain = weatherbit_data['data'][0]['precip']
+        logger.info(f"Lluvia del día según Weatherbit: {day_rain}mm")
 
         # Estructurar los datos de respuesta
         weather_data = {
@@ -94,10 +77,10 @@ def get_burgos_weather():
             "wind_speed": current_data["wind"]["speed"],
             "wind_direction": current_data["wind"]["deg"],
             "weather_overview": current_data["weather"][0]["description"],
-            "day_rain": round(day_rain, 1),  # Usar el valor calculado
+            "day_rain": day_rain,  # Usando el dato de Weatherbit
             "total_rain": round(total_rain, 1),
-            "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp_max"]),
-            "min_temperature": day_summary_data.get("temperature", {}).get("min", current_data["main"]["temp_min"]),
+            "max_temperature": current_data["main"]["temp_max"],
+            "min_temperature": current_data["main"]["temp_min"],
             "icon": current_data["weather"][0]["icon"],
             "description": current_data["weather"][0]["description"],
             "timestamp": datetime.now(pytz.UTC).isoformat()
@@ -106,7 +89,7 @@ def get_burgos_weather():
         return jsonify(weather_data)
 
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error al obtener datos de OpenWeather: {str(e)}")
+        logger.error(f"Error al obtener datos de las APIs: {str(e)}")
         return jsonify({"error": "Error al obtener datos meteorológicos"}), 500
     except Exception as e:
         logger.error(f"Error inesperado: {str(e)}")
