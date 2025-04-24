@@ -11,7 +11,20 @@ from api_barcelona_rain import barcelona_rain_bp
 from api_radar_aemet import radar_bp
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS with specific settings
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "https://meteosarria.com",
+            "http://localhost:3000",
+            "http://127.0.0.1:3000"
+        ],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "supports_credentials": True
+    }
+})
 
 # Register blueprints
 app.register_blueprint(live_bp)
