@@ -83,4 +83,9 @@ def live_weather():
         return jsonify(live_data)
     except Exception as e:
         logging.error(f"Error in live_weather endpoint: {e}")
+               # Añadir encabezados CORS manualmente
+        response.headers.add('Access-Control-Allow-Origin', 'https://meteosarria.com')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return jsonify({"error": "Internal server error"}), 500 
