@@ -15,18 +15,7 @@ logger = logging.getLogger(__name__)
 # Create Blueprint
 live_bp = Blueprint('live', __name__)
 
-# Enable CORS for the blueprint
-CORS(live_bp, resources={
-    r"/api/*": {
-        "origins": [
-            "https://meteosarria.com",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"]
-    }
-})
+
 
 @live_bp.route('/api/live')
 def live_weather():
