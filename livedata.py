@@ -18,7 +18,7 @@ def get_meteohub_parameter(parameter_name):
         found or an error occurs.
     """
 #    url = "http://192.168.1.115/meteolog.cgi?type=xml&mode=data"
-    url = f"http://{METEOHUB_IP}:81/meteolog.cgi?type=xml&mode=data"
+    url = f"http://tervingo.hopto.me:81/meteolog.cgi?type=xml&mode=data"
 
     # Mapping of parameter names to Meteohub sensor IDs and attributes
     parameter_map = {
