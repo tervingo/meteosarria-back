@@ -13,18 +13,7 @@ from api_radar_aemet import radar_bp
 app = Flask(__name__)
 
 # Configure CORS with specific settings
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://meteosarria.com",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type"],
-        "supports_credentials": True
-    }
-})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 
 # Register blueprints
