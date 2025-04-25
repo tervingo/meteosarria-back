@@ -77,8 +77,8 @@ def live_weather():
             "icon": owm_data['weather'][0]['icon']
         }
 
-        if any(value is None for value in live_data.values()):
-            return jsonify({"error": "Could not retrieve complete live weather data"}), 500
+#        if any(value is None for value in live_data.values()):
+#            return jsonify({"error": "Could not retrieve complete live weather data"}), 500
 
         return jsonify(live_data)
     except Exception as e:
