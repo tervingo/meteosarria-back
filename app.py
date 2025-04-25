@@ -13,7 +13,7 @@ from api_radar_aemet import radar_bp
 app = Flask(__name__)
 
 # Configure CORS with specific settings
-""" CORS(app, resources={
+CORS(app, resources={
     r"/*": {
         "origins": [
             "https://meteosarria.com",
@@ -24,19 +24,8 @@ app = Flask(__name__)
         "allow_headers": ["Content-Type"],
         "supports_credentials": True
     }
-}) """
+})
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-            "https://meteosarria.com",
-            "http://localhost:3000",
-            "http://127.0.0.1:3000"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Register blueprints
 app.register_blueprint(live_bp)
