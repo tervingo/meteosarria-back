@@ -51,7 +51,7 @@ def get_meteohub_parameter(parameter_name):
             # Convert to appropriate data type based on parameter
             if parameter_name in ("ext_temp", "int_temp", "hum", "wind_speed", 
                                 "gust_speed", "press", "sea_press", "cur_rain", 
-                                "total_rain", "rad", "uv"):
+                                "total_rain", "rad", "uv") and value != "--":
                 return float(value)
             else:
                 return value  # Return as string if not a numeric parameter
