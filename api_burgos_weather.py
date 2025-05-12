@@ -78,6 +78,7 @@ def get_burgos_weather():
             "total_rain": round(total_rain, 1),
             "max_temperature": day_summary_data.get("temperature", {}).get("max", current_data["main"]["temp"]),
             "min_temperature": day_summary_data.get("temperature", {}).get("min", current_data["main"]["temp"]),
+            "clouds": current_data["clouds"]["all"],
             "icon": current_data["weather"][0]["icon"],
             "description": current_data["weather"][0]["description"],
             "timestamp": datetime.now(pytz.UTC).isoformat()
