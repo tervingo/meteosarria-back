@@ -8,7 +8,7 @@ backlog = 2048
 workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = 'sync'
 worker_connections = 1000
-timeout = 30  # Increased timeout
+timeout = 60  # Increased timeout to 60 seconds
 keepalive = 2
 
 # Logging

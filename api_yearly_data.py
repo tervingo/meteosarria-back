@@ -1,9 +1,9 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 import logging
 import os
 import pytz
 from datetime import datetime, timedelta
-from database import collection
+from database import get_collection
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -48,7 +48,7 @@ def yearly_temperature_data():
         logging.info(f"Consultando {len(days_to_query)} días")
         
         # Obtener documentos
-        all_data = list(collection.find(query).sort("timestamp", 1))
+        all_data = list(get_collection().find(query).sort("timestamp", 1))
         logging.info(f"Encontrados {len(all_data)} registros")
         
         # Procesar datos para obtener máximas, mínimas y medias por día

@@ -1,7 +1,6 @@
 import logging
 import os
 import csv
-from pymongo import MongoClient
 from datetime import datetime
 import dropbox
 from dropbox.files import WriteMode, DeleteError
@@ -9,23 +8,11 @@ from dropbox.exceptions import AuthError, ApiError
 import pytz
 import requests
 from urllib.parse import quote
+import json
+from database import get_collection
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-
-# --- MongoDB Connection ---
-try:
-    mongo_uri = os.getenv("MONGODB_URI")
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI environment variable not set")
-
-    client = MongoClient(mongo_uri)
-    db = client.meteosarria
-    collection = db.data
-    logging.info("Connected to MongoDB")
-except Exception as e:
-    logging.error(f"Error connecting to MongoDB: {e}")
-    exit(1)
 
 # --- Dropbox Connection (using refresh token) ---
 try:
@@ -126,6 +113,7 @@ def export_mongodb_to_csv_and_upload_to_dropbox():
     try:
         # Fetch data from MongoDB
         logging.info("Fetching data from MongoDB...")
+        collection = get_collection()
         cursor = collection.find({})
         data = list(cursor)
 

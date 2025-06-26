@@ -1,26 +1,13 @@
 import logging
 import os
-from pymongo import MongoClient
 from datetime import datetime
 from livedata import get_meteohub_parameter
 import pytz
+import json
+from database import get_collection
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-
-# MongoDB connection
-try:
-    mongo_uri = os.getenv("MONGODB_URI")
-    if not mongo_uri:
-        raise ValueError("MONGODB_URI environment variable not set")
-    
-    client = MongoClient(mongo_uri)
-    db = client.meteosarria
-    collection = db.data
-    logging.info("Connected to MongoDB")
-except Exception as e:
-    logging.error(f"Error connecting to MongoDB: {e}")
-    exit(1)
 
 def log_weather_data():
     try:
@@ -42,7 +29,7 @@ def log_weather_data():
             logging.warning("Could not retrieve complete live weather data")
             return
 
-        collection.insert_one(live_data)
+        get_collection().insert_one(live_data)
         logging.info(f"Logged weather data: {live_data}")
     except Exception as e:
         logging.error(f"Error logging weather data: {e}")

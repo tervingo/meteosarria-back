@@ -39,7 +39,8 @@ def get_meteohub_parameter(parameter_name):
         return None
 
     try:
-        response = requests.get(url)
+        # Add timeouts to prevent hanging requests
+        response = requests.get(url, timeout=(5, 15))  # (connect_timeout, read_timeout)
         response.raise_for_status()
         root = ET.fromstring(response.text)
         
@@ -58,9 +59,18 @@ def get_meteohub_parameter(parameter_name):
 
         return None  # Parameter not found
 
+    except requests.exceptions.Timeout as e:
+        print(f"Timeout error fetching data from Meteohub: {e}")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        print(f"Connection error fetching data from Meteohub: {e}")
+        return None
     except requests.exceptions.RequestException as e:
         print(f"Error fetching data from Meteohub: {e}")
         return None
     except ET.ParseError as e:
         print(f"Error parsing XML response: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error in get_meteohub_parameter: {e}")
         return None

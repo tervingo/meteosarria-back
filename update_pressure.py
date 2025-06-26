@@ -1,8 +1,8 @@
-from pymongo import MongoClient
-import os
-from datetime import datetime
 import logging
-import re
+import os
+from datetime import datetime, timedelta
+import pytz
+from database import get_collection
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -10,15 +10,6 @@ logger = logging.getLogger(__name__)
 
 def update_pressure_values():
     try:
-        # Conectar a MongoDB
-        mongo_uri = 'mongodb+srv://tervingo:mig.langar.inn@gagnagunnur.okrh1.mongodb.net/meteosarria'
-        if not mongo_uri:
-            raise ValueError("MONGODB_URI environment variable not set")
-
-        client = MongoClient(mongo_uri)
-        db = client.meteosarria
-        collection = db.data
-
         # Encontrar documentos con pressure que tengan 13 decimales
         # El patrón busca números como 1017.6999999999999
         pattern = r'\d+\.\d{13}$'
@@ -26,6 +17,8 @@ def update_pressure_values():
             "pressure": {"$exists": True},
             "pressure": {"$regex": pattern}
         }
+
+        collection = get_collection()
 
         # Contador para documentos actualizados
         updated_count = 0
@@ -58,8 +51,6 @@ def update_pressure_values():
 
     except Exception as e:
         logger.error(f"Error updating pressure values: {e}")
-    finally:
-        client.close()
 
 if __name__ == "__main__":
     update_pressure_values() 

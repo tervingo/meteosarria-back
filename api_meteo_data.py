@@ -3,7 +3,7 @@ import logging
 import os
 import pytz
 from datetime import datetime, timedelta
-from database import collection
+from database import get_collection
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -51,7 +51,7 @@ def temperature_data():
         logging.info(f"Query: {query}")
         
         # Obtener documentos
-        all_data = list(collection.find(query).sort("timestamp", 1))
+        all_data = list(get_collection().find(query).sort("timestamp", 1))
         logging.info(f"Documentos encontrados antes de filtrar por hora: {len(all_data)}")
         
         if all_data:

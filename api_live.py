@@ -3,10 +3,10 @@ from flask_cors import CORS
 import logging
 import os
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 from livedata import get_meteohub_parameter
-from database import collection  # Import collection from database module
+from database import get_collection  # Import collection from database module
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -26,7 +26,7 @@ def live_weather():
         today = now.strftime("%d-%m-%Y")
         
         # Get today's temperature records
-        today_records = list(collection.find({
+        today_records = list(get_collection().find({
             "timestamp": {"$regex": f"^{today}"}
         }).sort("timestamp", 1))
         
