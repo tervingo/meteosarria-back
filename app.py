@@ -9,6 +9,7 @@ from api_yearly_data import yearly_bp
 from api_burgos_weather import burgos_bp
 from api_barcelona_rain import barcelona_rain_bp
 from api_radar_aemet import radar_bp
+from api_historico import historico_bp
 
 app = Flask(__name__)
 
@@ -23,7 +24,7 @@ app.register_blueprint(yearly_bp)
 app.register_blueprint(burgos_bp)
 app.register_blueprint(barcelona_rain_bp)
 app.register_blueprint(radar_bp)
-
+app.register_blueprint(historico_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
