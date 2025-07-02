@@ -27,7 +27,7 @@ def get_historico_collection():
 
 @historico_bp.route('/api/dashboard/resumen')
 def dashboard_resumen():
-    """Resumen actual del dashboard"""
+    """Resumen actual del dashboard - combina datos actuales + históricos"""
     try:
         logging.info("Dashboard resumen endpoint called")
         
@@ -37,19 +37,32 @@ def dashboard_resumen():
         now = datetime.now(pytz.timezone('Europe/Madrid'))
         today = now.date()
         
-        # Obtener temperatura actual (último registro del día)
-        ultimo_registro = intervalos_collection.find({
-            "fecha": today.strftime("%Y-%m-%d")
-        }).sort("timestamp", -1).limit(1)
-        
+        # 1. OBTENER DATOS ACTUALES del endpoint /api/live
         temp_actual = None
         hum_actual = None
         
-        for doc in ultimo_registro:
-            temp_actual = doc['temperatura']['promedio']
-            hum_actual = doc['humedad']['promedio']
+        try:
+            # Usar la misma lógica que DatosSarria - obtener datos actuales
+            live_collection = get_collection()  # Tu colección de datos en vivo
+            
+            # Buscar el registro más reciente
+            ultimo_registro = live_collection.find().sort("timestamp", -1).limit(1)
+            
+            for doc in ultimo_registro:
+                # Usar los mismos campos que weatherData
+                temp_actual = doc.get('external_temperature')
+                hum_actual = doc.get('humidity')
+                logging.info(f"Datos actuales obtenidos: temp={temp_actual}, hum={hum_actual}")
+                
+        except Exception as e:
+            logging.warning(f"Error obteniendo datos actuales: {e}")
+            # Fallback: usar datos del último intervalo histórico
+            ultimo_intervalo = intervalos_collection.find().sort("timestamp", -1).limit(1)
+            for doc in ultimo_intervalo:
+                temp_actual = doc['temperatura']['promedio']
+                hum_actual = doc['humedad']['promedio']
         
-        # Calcular promedio histórico para este día del año
+        # 2. CALCULAR PROMEDIO HISTÓRICO para este día del año
         dia_mes = f"{today.month:02d}-{today.day:02d}"
         
         pipeline_promedio = [
@@ -79,30 +92,78 @@ def dashboard_resumen():
         ]
         
         promedio_historico = list(diario_collection.aggregate(pipeline_promedio))
-        temp_promedio_hist = promedio_historico[0]['temp_promedio'] if promedio_historico else None
-        hum_promedio_hist = promedio_historico[0]['hum_promedio'] if promedio_historico else None
+        temp_promedio_hist = None
+        hum_promedio_hist = None
         
-        # Calcular diferencia
+        if promedio_historico:
+            temp_promedio_hist = promedio_historico[0].get('temp_promedio')
+            hum_promedio_hist = promedio_historico[0].get('hum_promedio')
+        
+        # 3. CALCULAR DIFERENCIAS
         comparacion_temp = None
         comparacion_hum = None
         
-        if temp_actual and temp_promedio_hist:
+        if temp_actual is not None and temp_promedio_hist is not None:
             comparacion_temp = round(temp_actual - temp_promedio_hist, 1)
         
-        if hum_actual and hum_promedio_hist:
+        if hum_actual is not None and hum_promedio_hist is not None:
             comparacion_hum = round(hum_actual - hum_promedio_hist, 1)
         
-        return jsonify({
+        # 4. INFORMACIÓN ADICIONAL sobre la última actualización
+        ultima_actualizacion = None
+        try:
+            live_collection = get_collection()
+            ultimo_doc = live_collection.find().sort("timestamp", -1).limit(1)
+            for doc in ultimo_doc:
+                ultima_actualizacion = doc.get('timestamp')
+        except:
+            pass
+        
+        response_data = {
             "temperatura_actual": temp_actual,
             "humedad_actual": hum_actual,
             "comparacion_temp_promedio": comparacion_temp,
             "comparacion_hum_promedio": comparacion_hum,
+            "temp_promedio_historico": round(temp_promedio_hist, 1) if temp_promedio_hist else None,
+            "hum_promedio_historico": round(hum_promedio_hist, 1) if hum_promedio_hist else None,
             "fecha_actualizacion": now.isoformat(),
-            "dia_año": dia_mes
-        })
+            "ultima_lectura": ultima_actualizacion,
+            "dia_año": dia_mes,
+            "años_comparacion": now.year - 2009  # Años de datos históricos
+        }
+        
+        logging.info(f"Dashboard resumen response: {response_data}")
+        return jsonify(response_data)
         
     except Exception as e:
         logging.error(f"Error en dashboard resumen: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+# También agregar un endpoint específico para datos actuales si lo necesitas
+@historico_bp.route('/api/dashboard/datos-actuales')
+def datos_actuales():
+    """Endpoint específico para obtener solo los datos actuales"""
+    try:
+        live_collection = get_collection()
+        
+        # Obtener el último registro
+        ultimo_registro = live_collection.find().sort("timestamp", -1).limit(1)
+        
+        datos_actuales = {}
+        for doc in ultimo_registro:
+            datos_actuales = {
+                "temperatura": doc.get('external_temperature'),
+                "humedad": doc.get('humidity'),
+                "presion": doc.get('pressure'),
+                "timestamp": doc.get('timestamp'),
+                "temperatura_interior": doc.get('temperature'),
+                # Agregar otros campos que necesites
+            }
+        
+        return jsonify(datos_actuales)
+        
+    except Exception as e:
+        logging.error(f"Error obteniendo datos actuales: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
 @historico_bp.route('/api/dashboard/records')
