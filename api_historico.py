@@ -318,7 +318,7 @@ def heatmap_data():
 
 @historico_bp.route('/api/dashboard/estadisticas')
 def estadisticas_destacadas():
-    """Estadísticas destacadas del mes y rachas actuales"""
+    """Estadísticas destacadas del mes pasado y rachas actuales"""
     try:
         logging.info("Dashboard estadísticas endpoint called")
         
@@ -326,15 +326,21 @@ def estadisticas_destacadas():
         
         # Fecha actual
         now = datetime.now(pytz.timezone('Europe/Madrid'))
-        mes_actual = now.month
-        año_actual = now.year
         
-        # Estadísticas del mes actual
+        # Calcular mes pasado
+        if now.month == 1:
+            mes_pasado = 12
+            año_mes_pasado = now.year - 1
+        else:
+            mes_pasado = now.month - 1
+            año_mes_pasado = now.year
+        
+        # Estadísticas del mes pasado
         pipeline_mes = [
             {
                 "$match": {
-                    "año": año_actual,
-                    "mes": mes_actual
+                    "año": año_mes_pasado,
+                    "mes": mes_pasado
                 }
             },
             {
@@ -352,6 +358,7 @@ def estadisticas_destacadas():
                     },
                     "temp_media_mes": {"$avg": "$temperatura.promedio"},
                     "temp_maxima_mes": {"$max": "$temperatura.maxima"},
+                    "temp_minima_mes": {"$min": "$temperatura.minima"},
                     "dias_helada": {
                         "$sum": {
                             "$cond": [{"$lte": ["$temperatura.minima", 0]}, 1, 0]
@@ -364,12 +371,12 @@ def estadisticas_destacadas():
         
         stats_mes = list(diario_collection.aggregate(pipeline_mes))
         
-        # Verificar si hay record mensual
+        # Verificar si hay record mensual histórico
         pipeline_record_mes = [
             {
                 "$match": {
-                    "mes": mes_actual,
-                    "año": {"$ne": año_actual}
+                    "mes": mes_pasado,
+                    "año": {"$ne": año_mes_pasado}
                 }
             },
             {
@@ -384,11 +391,17 @@ def estadisticas_destacadas():
         
         # Preparar respuesta
         estadisticas = {
-            "este_mes": {
+            "mes_pasado": {
+                "mes": mes_pasado,
+                "año": año_mes_pasado,
+                "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes_pasado],
                 "dias_calor_25": 0,
                 "dias_calor_30": 0,
                 "temperatura_media": 0,
                 "temperatura_maxima": 0,
+                "temperatura_minima": 0,
+                "dias_helada": 0,
                 "record_mes": False,
                 "total_dias": 0
             },
@@ -401,19 +414,21 @@ def estadisticas_destacadas():
         
         if stats_mes:
             mes_data = stats_mes[0]
-            estadisticas["este_mes"] = {
+            estadisticas["mes_pasado"].update({
                 "dias_calor_25": mes_data.get('dias_calor_25', 0),
                 "dias_calor_30": mes_data.get('dias_calor_30', 0),
                 "temperatura_media": round(mes_data.get('temp_media_mes', 0), 1),
                 "temperatura_maxima": mes_data.get('temp_maxima_mes', 0),
+                "temperatura_minima": mes_data.get('temp_minima_mes', 0),
+                "dias_helada": mes_data.get('dias_helada', 0),
                 "total_dias": mes_data.get('total_dias', 0),
                 "record_mes": False
-            }
+            })
             
             # Verificar record mensual
             if record_mes and mes_data.get('temp_maxima_mes'):
                 record_historico = record_mes[0].get('record_historico', 0)
-                estadisticas["este_mes"]["record_mes"] = mes_data['temp_maxima_mes'] > record_historico
+                estadisticas["mes_pasado"]["record_mes"] = mes_data['temp_maxima_mes'] > record_historico
         
         # Calcular rachas (simplificado - últimos 30 días)
         fecha_inicio_racha = now - timedelta(days=30)
