@@ -26,6 +26,20 @@ def get_historico_collection():
     return db['historico_intervalos'], db['historico_diario']
 
 
+@historico_bp.route('/api/dashboard/test')
+def test_endpoint():
+    """Endpoint de prueba para verificar que el blueprint funciona"""
+    try:
+        logging.info("Test endpoint called")
+        return jsonify({
+            "status": "ok",
+            "message": "Historico blueprint is working",
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logging.error(f"Error in test endpoint: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 @historico_bp.route('/api/dashboard/records')
 def dashboard_records():
     """Records históricos absolutos"""
@@ -33,6 +47,13 @@ def dashboard_records():
         logging.info("Dashboard records endpoint called")
         
         intervalos_collection, diario_collection = get_historico_collection()
+        
+        logging.info(f"Collections obtained: intervalos={intervalos_collection}, diario={diario_collection}")
+        
+        # Verificar si hay datos en las colecciones
+        count_intervalos = intervalos_collection.count_documents({})
+        count_diario = diario_collection.count_documents({})
+        logging.info(f"Document count - intervalos: {count_intervalos}, diario: {count_diario}")
         
         # Records absolutos
         maxima_masalta_historica = diario_collection.find().sort("temperatura.maxima", -1).limit(1)
