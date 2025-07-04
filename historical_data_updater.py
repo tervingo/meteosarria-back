@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 class HistoricalDataUpdater:
     def __init__(self):
         # Configuración desde variables de entorno
-        self.api_base_url = os.getenv('API_BASE_URL', 'https://meteosarria.com')
+        self.api_base_url = os.getenv('API_BASE_URL', 'https://meteosarria-back.onrender.com')
         self.mongodb_uri = os.getenv('MONGODB_URI')
-        self.db_name = os.getenv('DB_NAME', 'meteorologia')
+        self.db_name = os.getenv('DB_NAME', 'meteosarria')  # Cambiado a meteosarria
         
         # Timezone Madrid
         self.madrid_tz = pytz.timezone('Europe/Madrid')
@@ -44,15 +44,23 @@ class HistoricalDataUpdater:
     def create_indexes(self):
         """Crear índices únicos para evitar duplicados"""
         try:
-            # Índice único para datos diarios (fecha)
-            self.historico_diario.create_index("fecha", unique=True)
+            # Verificar si los índices ya existen antes de crearlos
+            existing_indexes_diario = [idx['name'] for idx in self.historico_diario.list_indexes()]
+            existing_indexes_intervalos = [idx['name'] for idx in self.historico_intervalos.list_indexes()]
             
-            # Índice único para datos por intervalos (timestamp)
-            self.historico_intervalos.create_index("timestamp", unique=True)
+            # Crear índice único para datos diarios si no existe
+            if 'fecha_1_unique' not in existing_indexes_diario:
+                self.historico_diario.create_index("fecha", unique=True, name="fecha_1_unique")
+                logger.info("Índice único 'fecha' creado en historico_diario")
             
-            logger.info("Índices creados correctamente")
+            # Crear índice único para datos por intervalos si no existe
+            if 'timestamp_1_unique' not in existing_indexes_intervalos:
+                self.historico_intervalos.create_index("timestamp", unique=True, name="timestamp_1_unique")
+                logger.info("Índice único 'timestamp' creado en historico_intervalos")
+            
+            logger.info("Verificación de índices completada")
         except Exception as e:
-            logger.error(f"Error creando índices: {e}")
+            logger.error(f"Error gestionando índices: {e}")
     
     def get_live_data(self):
         """Obtener datos del endpoint /api/live"""
@@ -73,16 +81,43 @@ class HistoricalDataUpdater:
             return None
     
     def update_intervalos(self, live_data):
-        """Actualizar colección historico_intervalos (solo temperatura y humedad)"""
+        """Actualizar colección historico_intervalos (estructura similar al CSV)"""
         now = datetime.now(self.madrid_tz)
-        timestamp = now.strftime("%d-%m-%Y %H:%M:%S")
         
-        # Preparar documento para intervalos - SOLO temperatura y humedad
+        # Obtener valores de temperatura y humedad
+        temp = live_data.get('external_temperature')
+        hum = live_data.get('humidity')
+        
+        if temp is None or hum is None:
+            logger.warning("Datos de temperatura o humedad no disponibles")
+            return False
+        
+        # Preparar documento con la misma estructura que el CSV
         intervalo_doc = {
-            'timestamp': timestamp,
-            'external_temperature': live_data.get('external_temperature'),
-            'humidity': live_data.get('humidity'),
-            'created_at': now.isoformat()
+            "timestamp": now,  # datetime object, no string
+            "fecha": now.strftime("%Y-%m-%d"),
+            "hora": now.strftime("%H:%M:%S"),
+            "año": now.year,
+            "mes": now.month,
+            "dia": now.day,
+            "temperatura": {
+                "promedio": round(float(temp), 1),
+                "minima": round(float(temp), 1),
+                "maxima": round(float(temp), 1)
+            },
+            "humedad": {
+                "promedio": round(float(hum), 1),
+                "minima": round(float(hum), 1),
+                "maxima": round(float(hum), 1)
+            },
+            "num_lecturas": 1,
+            "intervalo_minutos": 60,  # cada hora
+            "datos_corregidos": {
+                "temp_corrections": 0,
+                "hum_corrections": 0,
+                "total_corrections": 0
+            },
+            "created_at": now
         }
         
         try:
@@ -90,69 +125,104 @@ class HistoricalDataUpdater:
             logger.info(f"Registro de intervalo insertado: {result.inserted_id}")
             return True
         except DuplicateKeyError:
-            logger.warning(f"Registro duplicado para timestamp: {timestamp}")
+            logger.warning(f"Registro duplicado para timestamp: {now}")
             return False
         except Exception as e:
             logger.error(f"Error insertando registro de intervalo: {e}")
             return False
     
     def update_diario(self, live_data):
-        """Actualizar colección historico_diario (solo temperatura y humedad)"""
+        """Actualizar colección historico_diario (estructura similar al CSV)"""
         now = datetime.now(self.madrid_tz)
-        fecha = now.strftime("%d-%m-%Y")
+        fecha_str = now.strftime("%Y-%m-%d")
         
-        # Obtener temperaturas máxima y mínima actuales
+        # Obtener valores actuales
         temp_actual = live_data.get('external_temperature')
         temp_max = live_data.get('max_temperature')
         temp_min = live_data.get('min_temperature')
+        hum_actual = live_data.get('humidity')
         
-        if temp_actual is None:
-            logger.warning("Temperatura actual no disponible")
+        if temp_actual is None or hum_actual is None:
+            logger.warning("Datos de temperatura o humedad no disponibles")
             return False
         
+        temp_actual = float(temp_actual)
+        hum_actual = float(hum_actual)
+        
         # Buscar registro existente del día
-        existing_doc = self.historico_diario.find_one({'fecha': fecha})
+        existing_doc = self.historico_diario.find_one({'fecha': fecha_str})
         
         if existing_doc:
-            # Actualizar temperaturas máxima y mínima si es necesario
-            updates = {}
+            # Actualizar temperaturas máxima y mínima
+            current_temp_max = existing_doc.get('temperatura', {}).get('maxima', temp_actual)
+            current_temp_min = existing_doc.get('temperatura', {}).get('minima', temp_actual)
+            current_hum_max = existing_doc.get('humedad', {}).get('maxima', hum_actual)
+            current_hum_min = existing_doc.get('humedad', {}).get('minima', hum_actual)
             
+            # Calcular nuevos valores máximos y mínimos
+            new_temp_max = max(current_temp_max, temp_actual)
+            new_temp_min = min(current_temp_min, temp_actual)
+            new_hum_max = max(current_hum_max, hum_actual)
+            new_hum_min = min(current_hum_min, hum_actual)
+            
+            # Si viene temp_max/min del endpoint, usarlos si son mejores
             if temp_max is not None:
-                if 'temp_max' not in existing_doc or temp_max > existing_doc.get('temp_max', -999):
-                    updates['temp_max'] = temp_max
-            
+                new_temp_max = max(new_temp_max, float(temp_max))
             if temp_min is not None:
-                if 'temp_min' not in existing_doc or temp_min < existing_doc.get('temp_min', 999):
-                    updates['temp_min'] = temp_min
+                new_temp_min = min(new_temp_min, float(temp_min))
             
-            # Actualizar temperatura actual y humedad
-            updates.update({
-                'temp_actual': temp_actual,
-                'humidity': live_data.get('humidity'),
-                'updated_at': now.isoformat()
-            })
+            # Calcular promedio (aproximado)
+            new_temp_avg = round((new_temp_max + new_temp_min) / 2, 1)
+            new_hum_avg = round((new_hum_max + new_hum_min) / 2, 1)
             
-            if updates:
-                try:
-                    result = self.historico_diario.update_one(
-                        {'fecha': fecha},
-                        {'$set': updates}
-                    )
-                    logger.info(f"Registro diario actualizado para {fecha}")
-                    return True
-                except Exception as e:
-                    logger.error(f"Error actualizando registro diario: {e}")
-                    return False
+            updates = {
+                'temperatura': {
+                    'promedio': new_temp_avg,
+                    'minima': new_temp_min,
+                    'maxima': new_temp_max
+                },
+                'humedad': {
+                    'promedio': new_hum_avg,
+                    'minima': new_hum_min,
+                    'maxima': new_hum_max
+                },
+                'updated_at': now
+            }
+            
+            try:
+                result = self.historico_diario.update_one(
+                    {'fecha': fecha_str},
+                    {'$set': updates}
+                )
+                logger.info(f"Registro diario actualizado para {fecha_str}")
+                return True
+            except Exception as e:
+                logger.error(f"Error actualizando registro diario: {e}")
+                return False
         else:
-            # Crear nuevo registro diario - SOLO temperatura y humedad
+            # Crear nuevo registro diario con estructura del CSV
             diario_doc = {
-                'fecha': fecha,
-                'temp_actual': temp_actual,
-                'temp_max': temp_max or temp_actual,
-                'temp_min': temp_min or temp_actual,
-                'humidity': live_data.get('humidity'),
-                'created_at': now.isoformat(),
-                'updated_at': now.isoformat()
+                "timestamp": now.replace(hour=0, minute=0, second=0, microsecond=0),
+                "fecha": fecha_str,
+                "año": now.year,
+                "mes": now.month,
+                "dia": now.day,
+                "tipo": "resumen_diario",
+                "temperatura": {
+                    "promedio": round(temp_actual, 1),
+                    "minima": float(temp_min) if temp_min is not None else temp_actual,
+                    "maxima": float(temp_max) if temp_max is not None else temp_actual
+                },
+                "humedad": {
+                    "promedio": round(hum_actual, 1),
+                    "minima": hum_actual,
+                    "maxima": hum_actual
+                },
+                "num_intervalos": 1,
+                "datos_corregidos": {
+                    "total_corrections": 0
+                },
+                "created_at": now
             }
             
             try:
@@ -207,9 +277,13 @@ class HistoricalDataUpdater:
             return False
     
     def __del__(self):
-        """Cerrar conexión a MongoDB"""
-        if hasattr(self, 'client'):
-            self.client.close()
+        """Cerrar conexión a MongoDB de forma segura"""
+        try:
+            if hasattr(self, 'client'):
+                self.client.close()
+        except:
+            # Ignorar errores al cerrar durante shutdown
+            pass
 
 def main():
     """Función principal"""
