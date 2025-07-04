@@ -338,8 +338,9 @@ def heatmap_data():
         return jsonify({"error": str(e)}), 500
 
 @historico_bp.route('/api/dashboard/estadisticas')
-def estadisticas_destacadas():
-    """Estadísticas destacadas del mes pasado y rachas actuales"""
+@historico_bp.route('/api/dashboard/estadisticas/<int:year>/<int:month>')
+def estadisticas_destacadas(year=None, month=None):
+    """Estadísticas destacadas del mes especificado y rachas actuales"""
     try:
         logging.info("Dashboard estadísticas endpoint called")
         
@@ -348,20 +349,20 @@ def estadisticas_destacadas():
         # Fecha actual
         now = datetime.now(pytz.timezone('Europe/Madrid'))
         
-        # Calcular mes pasado
-        if now.month == 1:
-            mes_pasado = 12
-            año_mes_pasado = now.year - 1
+        # Si no se especifican año y mes, usar el mes actual
+        if year is None or month is None:
+            año_mes = now.year
+            mes = now.month
         else:
-            mes_pasado = now.month - 1
-            año_mes_pasado = now.year
+            año_mes = year
+            mes = month
         
-        # Estadísticas del mes pasado
+        # Estadísticas del mes especificado
         pipeline_mes = [
             {
                 "$match": {
-                    "año": año_mes_pasado,
-                    "mes": mes_pasado
+                    "año": año_mes,
+                    "mes": mes
                 }
             },
             {
@@ -396,8 +397,8 @@ def estadisticas_destacadas():
         pipeline_record_mes = [
             {
                 "$match": {
-                    "mes": mes_pasado,
-                    "año": {"$ne": año_mes_pasado}
+                    "mes": mes,
+                    "año": {"$ne": año_mes}
                 }
             },
             {
@@ -412,11 +413,11 @@ def estadisticas_destacadas():
         
         # Preparar respuesta
         estadisticas = {
-            "mes_pasado": {
-                "mes": mes_pasado,
-                "año": año_mes_pasado,
+            "mes_seleccionado": {
+                "mes": mes,
+                "año": año_mes,
                 "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
-                              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes_pasado],
+                              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
                 "dias_calor_25": 0,
                 "dias_calor_30": 0,
                 "temperatura_media": 0,
@@ -435,7 +436,7 @@ def estadisticas_destacadas():
         
         if stats_mes:
             mes_data = stats_mes[0]
-            estadisticas["mes_pasado"].update({
+            estadisticas["mes_seleccionado"].update({
                 "dias_calor_25": mes_data.get('dias_calor_25', 0),
                 "dias_calor_30": mes_data.get('dias_calor_30', 0),
                 "temperatura_media": round(mes_data.get('temp_media_mes', 0), 1),
@@ -449,7 +450,7 @@ def estadisticas_destacadas():
             # Verificar record mensual
             if record_mes and mes_data.get('temp_maxima_mes'):
                 record_historico = record_mes[0].get('record_historico', 0)
-                estadisticas["mes_pasado"]["record_mes"] = mes_data['temp_maxima_mes'] > record_historico
+                estadisticas["mes_seleccionado"]["record_mes"] = mes_data['temp_maxima_mes'] > record_historico
         
         # Calcular rachas (simplificado - últimos 30 días)
         fecha_inicio_racha = now - timedelta(days=30)
