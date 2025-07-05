@@ -378,6 +378,16 @@ def estadisticas_destacadas(year=None, month=None):
                             "$cond": [{"$gte": ["$temperatura.maxima", 30]}, 1, 0]
                         }
                     },
+                    "dias_frio_10": {
+                        "$sum": {
+                            "$cond": [{"$lt": ["$temperatura.maxima", 10]}, 1, 0]
+                        }
+                    },
+                    "dias_frio_15": {
+                        "$sum": {
+                            "$cond": [{"$lt": ["$temperatura.maxima", 15]}, 1, 0]
+                        }
+                    },
                     "temp_media_mes": {"$avg": "$temperatura.promedio"},
                     "temp_maxima_mes": {"$max": "$temperatura.maxima"},
                     "temp_minima_mes": {"$min": "$temperatura.minima"},
@@ -420,6 +430,8 @@ def estadisticas_destacadas(year=None, month=None):
                               "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
                 "dias_calor_25": 0,
                 "dias_calor_30": 0,
+                "dias_frio_10": 0,
+                "dias_frio_15": 0,
                 "temperatura_media": 0,
                 "temperatura_maxima": 0,
                 "temperatura_minima": 0,
@@ -439,6 +451,8 @@ def estadisticas_destacadas(year=None, month=None):
             estadisticas["mes_seleccionado"].update({
                 "dias_calor_25": mes_data.get('dias_calor_25', 0),
                 "dias_calor_30": mes_data.get('dias_calor_30', 0),
+                "dias_frio_10": mes_data.get('dias_frio_10', 0),
+                "dias_frio_15": mes_data.get('dias_frio_15', 0),
                 "temperatura_media": round(mes_data.get('temp_media_mes', 0), 1),
                 "temperatura_maxima": mes_data.get('temp_maxima_mes', 0),
                 "temperatura_minima": mes_data.get('temp_minima_mes', 0),
