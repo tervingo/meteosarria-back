@@ -368,9 +368,9 @@ def estadisticas_destacadas(year=None, month=None):
             {
                 "$group": {
                     "_id": None,
-                    "dias_calor_25": {
+                    "dias_calor_35": {
                         "$sum": {
-                            "$cond": [{"$gte": ["$temperatura.maxima", 25]}, 1, 0]
+                            "$cond": [{"$gte": ["$temperatura.maxima", 35]}, 1, 0]
                         }
                     },
                     "dias_calor_30": {
@@ -378,14 +378,34 @@ def estadisticas_destacadas(year=None, month=None):
                             "$cond": [{"$gte": ["$temperatura.maxima", 30]}, 1, 0]
                         }
                     },
-                    "dias_frio_10": {
+                    "dias_calor_25": {
                         "$sum": {
-                            "$cond": [{"$lt": ["$temperatura.maxima", 10]}, 1, 0]
+                            "$cond": [{"$gte": ["$temperatura.maxima", 25]}, 1, 0]
+                        }
+                    },
+                    "dias_calor_20": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temperatura.maxima", 20]}, 1, 0]
                         }
                     },
                     "dias_frio_15": {
                         "$sum": {
                             "$cond": [{"$lt": ["$temperatura.maxima", 15]}, 1, 0]
+                        }
+                    },
+                    "dias_frio_10": {
+                        "$sum": {
+                            "$cond": [{"$lt": ["$temperatura.maxima", 10]}, 1, 0]
+                        }
+                    },
+                    "dias_frio_5": {
+                        "$sum": {
+                            "$cond": [{"$lt": ["$temperatura.maxima", 5]}, 1, 0]
+                        }
+                    },
+                    "dias_frio_0": {
+                        "$sum": {
+                            "$cond": [{"$lt": ["$temperatura.maxima", 0]}, 1, 0]
                         }
                     },
                     "temp_media_mes": {"$avg": "$temperatura.promedio"},
@@ -430,8 +450,12 @@ def estadisticas_destacadas(year=None, month=None):
                               "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
                 "dias_calor_25": 0,
                 "dias_calor_30": 0,
+                "dias_calor_35": 0,
+                "dias_calor_20": 0,
                 "dias_frio_10": 0,
                 "dias_frio_15": 0,
+                "dias_frio_5": 0,
+                "dias_frio_0": 0,
                 "temperatura_media": 0,
                 "temperatura_maxima": 0,
                 "temperatura_minima": 0,
