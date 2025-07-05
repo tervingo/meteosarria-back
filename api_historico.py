@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, current_app
 import logging
 import os
 import pytz
@@ -6,6 +6,12 @@ from datetime import datetime, timedelta
 from database import get_collection
 import statistics
 from collections import defaultdict
+from cache_manager import (
+    get_current_date, 
+    get_historical_data_with_cache, 
+    get_current_data_only,
+    cache_historical_data
+)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -16,8 +22,7 @@ historico_bp = Blueprint('historico', __name__)
 
 def get_historico_collection():
     """Obtener colección de datos históricos"""
-    # Asumiendo que usarás las nuevas colecciones del script de migración
-    # Si decides usar la colección actual, cambiar por get_collection()
+
     from pymongo import MongoClient
     import os
     
@@ -55,52 +60,92 @@ def dashboard_records():
         count_diario = diario_collection.count_documents({})
         logging.info(f"Document count - intervalos: {count_intervalos}, diario: {count_diario}")
         
-        # Records absolutos
-        maxima_masalta_historica = diario_collection.find().sort("temperatura.maxima", -1).limit(1)
-        maxima_masbaja_historica = diario_collection.find().sort("temperatura.maxima", 1).limit(1)
-        minima_masbaja_historica = diario_collection.find().sort("temperatura.minima", 1).limit(1)
-        minima_masalta_historica = diario_collection.find().sort("temperatura.minima", -1).limit(1)
+        # Records absolutos - usar caché para datos históricos
+        pipeline_maxima_historica = [
+            {"$sort": {"temperatura.maxima": -1}},
+            {"$limit": 1}
+        ]
         
-        # Records de este año
+        pipeline_maxima_masbaja = [
+            {"$sort": {"temperatura.maxima": 1}},
+            {"$limit": 1}
+        ]
+        
+        pipeline_minima_masbaja = [
+            {"$sort": {"temperatura.minima": 1}},
+            {"$limit": 1}
+        ]
+        
+        pipeline_minima_masalta = [
+            {"$sort": {"temperatura.minima": -1}},
+            {"$limit": 1}
+        ]
+        
+        # Obtener datos históricos con caché
+        maxima_masalta_historica = get_historical_data_with_cache(diario_collection, pipeline_maxima_historica)
+        maxima_masbaja_historica = get_historical_data_with_cache(diario_collection, pipeline_maxima_masbaja)
+        minima_masbaja_historica = get_historical_data_with_cache(diario_collection, pipeline_minima_masbaja)
+        minima_masalta_historica = get_historical_data_with_cache(diario_collection, pipeline_minima_masalta)
+        
+        # Records de este año - incluir datos actuales
         año_actual = datetime.now().year
-        maxima_año = diario_collection.find({"año": año_actual}).sort("temperatura.maxima", -1).limit(1)
-        minima_año = diario_collection.find({"año": año_actual}).sort("temperatura.minima", 1).limit(1)
+        pipeline_maxima_año = [
+            {"$match": {"año": año_actual}},
+            {"$sort": {"temperatura.maxima": -1}},
+            {"$limit": 1}
+        ]
+        
+        pipeline_minima_año = [
+            {"$match": {"año": año_actual}},
+            {"$sort": {"temperatura.minima": 1}},
+            {"$limit": 1}
+        ]
+        
+        # Para el año actual, obtener datos históricos + actuales
+        maxima_año = list(diario_collection.aggregate(pipeline_maxima_año))
+        minima_año = list(diario_collection.aggregate(pipeline_minima_año))
         
         records = {}
         
         # Procesar records absolutos
-        for doc in maxima_masalta_historica:
+        if maxima_masalta_historica:
+            doc = maxima_masalta_historica[0]
             records["maxima_masalta_historica"] = {
                 "valor": doc['temperatura']['maxima'],
                 "fecha": doc['fecha']
             }
 
-        for doc in maxima_masbaja_historica:
+        if maxima_masbaja_historica:
+            doc = maxima_masbaja_historica[0]
             records["maxima_masbaja_historica"] = {
                 "valor": doc['temperatura']['maxima'],
                 "fecha": doc['fecha']
             }
 
-        for doc in minima_masbaja_historica:
+        if minima_masbaja_historica:
+            doc = minima_masbaja_historica[0]
             records["minima_masbaja_historica"] = {
                 "valor": doc['temperatura']['minima'],
                 "fecha": doc['fecha']
             }
 
-        for doc in minima_masalta_historica:
+        if minima_masalta_historica:
+            doc = minima_masalta_historica[0]
             records["minima_masalta_historica"] = {
                 "valor": doc['temperatura']['minima'],
                 "fecha": doc['fecha']
             }
         
         # Procesar records del año
-        for doc in maxima_año:
+        if maxima_año:
+            doc = maxima_año[0]
             records["maxima_este_año"] = {
                 "valor": doc['temperatura']['maxima'],
                 "fecha": doc['fecha']
             }
         
-        for doc in minima_año:
+        if minima_año:
+            doc = minima_año[0]
             records["minima_este_año"] = {
                 "valor": doc['temperatura']['minima'],
                 "fecha": doc['fecha']
@@ -120,7 +165,7 @@ def tendencia_anual():
         
         intervalos_collection, diario_collection = get_historico_collection()
         
-        # Agregación por año
+        # Agregación por año - usar caché para datos históricos
         pipeline = [
             {
                 "$group": {
@@ -136,7 +181,30 @@ def tendencia_anual():
             }
         ]
         
-        datos_anuales = list(diario_collection.aggregate(pipeline))
+        # Obtener datos históricos con caché
+        datos_anuales = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$group": {
+                    "_id": "$año",
+                    "temp_media": {"$avg": "$temperatura.promedio"},
+                    "temp_maxima": {"$avg": "$temperatura.maxima"},
+                    "temp_minima": {"$avg": "$temperatura.minima"},
+                    "hum_media": {"$avg": "$humedad.promedio"}
+                }
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos históricos con actuales
+        datos_completos = datos_anuales + datos_actuales
         
         # Preparar datos para el frontend
         años = []
@@ -145,7 +213,7 @@ def tendencia_anual():
         temperaturas_minimas = []
         humedades_medias = []
         
-        for doc in datos_anuales:
+        for doc in datos_completos:
             años.append(doc['_id'])
             temperaturas_medias.append(round(doc['temp_media'], 1))
             temperaturas_maximas.append(round(doc['temp_maxima'], 1))
@@ -202,7 +270,7 @@ def comparativa_año(year=None):
         if year is None:
             year = datetime.now().year
         
-        # Datos del año específico
+        # Datos del año específico - incluir datos actuales si es el año actual
         pipeline_año = [
             {
                 "$match": {"año": year}
@@ -220,7 +288,14 @@ def comparativa_año(year=None):
             }
         ]
         
-        # Promedio histórico (excluyendo el año consultado)
+        # Si es el año actual, obtener datos completos (sin caché)
+        if year == datetime.now().year:
+            datos_año = list(diario_collection.aggregate(pipeline_año))
+        else:
+            # Si es año anterior, usar caché
+            datos_año = get_historical_data_with_cache(diario_collection, pipeline_año)
+        
+        # Promedio histórico (excluyendo el año consultado) - usar caché
         pipeline_historico = [
             {
                 "$match": {"año": {"$ne": year}}
@@ -238,8 +313,7 @@ def comparativa_año(year=None):
             }
         ]
         
-        datos_año = list(diario_collection.aggregate(pipeline_año))
-        datos_historico = list(diario_collection.aggregate(pipeline_historico))
+        datos_historico = get_historical_data_with_cache(diario_collection, pipeline_historico)
         
         # Crear diccionarios para fácil acceso
         año_dict = {doc['_id']: doc for doc in datos_año}
@@ -313,11 +387,39 @@ def heatmap_data():
             }
         ]
         
-        datos_heatmap = list(diario_collection.aggregate(pipeline))
+        # Para el heatmap, obtener datos históricos con caché
+        datos_heatmap = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "año": "$año",
+                        "mes": "$mes"
+                    },
+                    "temperatura": {"$avg": "$temperatura.promedio"}
+                }
+            },
+            {
+                "$sort": {
+                    "_id.año": 1,
+                    "_id.mes": 1
+                }
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos
+        datos_completos = datos_heatmap + datos_actuales
         
         # Formatear para el frontend
         heatmap_formatted = []
-        for doc in datos_heatmap:
+        for doc in datos_completos:
             heatmap_formatted.append({
                 "año": doc['_id']['año'],
                 "mes": doc['_id']['mes'],
@@ -347,7 +449,7 @@ def estadisticas_destacadas(year=None, month=None):
         intervalos_collection, diario_collection = get_historico_collection()
         
         # Fecha actual
-        now = datetime.now(pytz.timezone('Europe/Madrid'))
+        now = get_current_date()
         
         # Si no se especifican año y mes, usar el mes actual
         if year is None or month is None:
@@ -421,7 +523,12 @@ def estadisticas_destacadas(year=None, month=None):
             }
         ]
         
-        stats_mes = list(diario_collection.aggregate(pipeline_mes))
+        # Si es el mes actual, obtener datos completos (sin caché)
+        if año_mes == now.year and mes == now.month:
+            stats_mes = list(diario_collection.aggregate(pipeline_mes))
+        else:
+            # Si es mes anterior, usar caché
+            stats_mes = get_historical_data_with_cache(diario_collection, pipeline_mes)
         
         # Verificar si hay record mensual histórico
         pipeline_record_mes = [
@@ -439,7 +546,7 @@ def estadisticas_destacadas(year=None, month=None):
             }
         ]
         
-        record_mes = list(diario_collection.aggregate(pipeline_record_mes))
+        record_mes = get_historical_data_with_cache(diario_collection, pipeline_record_mes)
         
         # Preparar respuesta
         estadisticas = {
@@ -473,10 +580,14 @@ def estadisticas_destacadas(year=None, month=None):
         if stats_mes:
             mes_data = stats_mes[0]
             estadisticas["mes_seleccionado"].update({
+                "dias_calor_35": mes_data.get('dias_calor_35', 0),
+                "dias_calor_20": mes_data.get('dias_calor_20', 0),
                 "dias_calor_25": mes_data.get('dias_calor_25', 0),
                 "dias_calor_30": mes_data.get('dias_calor_30', 0),
                 "dias_frio_10": mes_data.get('dias_frio_10', 0),
                 "dias_frio_15": mes_data.get('dias_frio_15', 0),
+                "dias_frio_5": mes_data.get('dias_frio_5', 0),
+                "dias_frio_0": mes_data.get('dias_frio_0', 0),
                 "temperatura_media": round(mes_data.get('temp_media_mes', 0), 1),
                 "temperatura_maxima": mes_data.get('temp_maxima_mes', 0),
                 "temperatura_minima": mes_data.get('temp_minima_mes', 0),
@@ -504,6 +615,7 @@ def estadisticas_destacadas(year=None, month=None):
             }
         ]
         
+        # Para rachas, obtener datos completos (sin caché) ya que incluyen datos actuales
         datos_rachas = list(diario_collection.aggregate(pipeline_rachas))
         
         # Calcular rachas consecutivas
@@ -529,4 +641,43 @@ def estadisticas_destacadas(year=None, month=None):
         
     except Exception as e:
         logging.error(f"Error en estadísticas destacadas: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/cache/status')
+def cache_status():
+    """Estado del caché histórico"""
+    try:
+        from cache_manager import invalidate_historical_cache
+        cache = current_app.extensions['cache']
+        
+        # Obtener información del caché
+        cache_info = {
+            "cache_type": "simple",
+            "cache_timeout": 86400,  # 24 horas
+            "cache_prefix": "meteosarria_",
+            "current_date": get_current_date().isoformat(),
+            "cache_enabled": True
+        }
+        
+        return jsonify(cache_info)
+        
+    except Exception as e:
+        logging.error(f"Error en cache status: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/cache/clear', methods=['POST'])
+def clear_cache():
+    """Limpiar caché histórico"""
+    try:
+        from cache_manager import invalidate_historical_cache
+        invalidate_historical_cache()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Cache histórico limpiado correctamente",
+            "timestamp": datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"Error limpiando cache: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500

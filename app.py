@@ -1,5 +1,7 @@
 from flask import Flask
 from flask_cors import CORS
+from flask_caching import Cache
+import os
 
 
 # Import blueprints and database
@@ -15,6 +17,22 @@ app = Flask(__name__)
 
 # Configure CORS with specific settings
 CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configure Flask-Caching based on environment
+if os.getenv('FLASK_ENV') == 'production' or os.getenv('RENDER') == 'true':
+    # Production configuration (Render)
+    from production_config import get_production_cache_config
+    cache_config = get_production_cache_config()
+else:
+    # Development configuration
+    cache_config = {
+        'CACHE_TYPE': 'simple',  # In-memory cache
+        'CACHE_DEFAULT_TIMEOUT': 3600,  # 1 hour for development
+        'CACHE_KEY_PREFIX': 'meteosarria_dev_'
+    }
+
+app.config.from_mapping(cache_config)
+cache = Cache(app)
 
 
 # Register blueprints
