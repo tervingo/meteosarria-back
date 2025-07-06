@@ -470,44 +470,89 @@ def estadisticas_destacadas(year=None, month=None):
             {
                 "$group": {
                     "_id": None,
-                    "dias_calor_35": {
+                    "dias_max_gte_35": {
                         "$sum": {
                             "$cond": [{"$gte": ["$temperatura.maxima", 35]}, 1, 0]
                         }
                     },
-                    "dias_calor_30": {
+                    "dias_max_gte_30": {
                         "$sum": {
                             "$cond": [{"$gte": ["$temperatura.maxima", 30]}, 1, 0]
                         }
                     },
-                    "dias_calor_25": {
+                    "dias_max_gte_25": {
                         "$sum": {
                             "$cond": [{"$gte": ["$temperatura.maxima", 25]}, 1, 0]
                         }
                     },
-                    "dias_calor_20": {
+                    "dias_max_gt_20": {
                         "$sum": {
-                            "$cond": [{"$gte": ["$temperatura.maxima", 20]}, 1, 0]
+                            "$cond": [{"$gt": ["$temperatura.maxima", 20]}, 1, 0]
                         }
                     },
-                    "dias_frio_15": {
+                    "dias_max_lte_20": {
                         "$sum": {
-                            "$cond": [{"$lt": ["$temperatura.maxima", 15]}, 1, 0]
+                            "$cond": [{"$lte": ["$temperatura.maxima", 20]}, 1, 0]
                         }
                     },
-                    "dias_frio_10": {
+                    "dias_max_lte_15": {
                         "$sum": {
-                            "$cond": [{"$lt": ["$temperatura.maxima", 10]}, 1, 0]
+                            "$cond": [{"$lte": ["$temperatura.maxima", 15]}, 1, 0]
                         }
                     },
-                    "dias_frio_5": {
+                    "dias_max_lte_10": {
                         "$sum": {
-                            "$cond": [{"$lt": ["$temperatura.maxima", 5]}, 1, 0]
+                            "$cond": [{"$lte": ["$temperatura.maxima", 10]}, 1, 0]
                         }
                     },
-                    "dias_frio_0": {
+                    "dias_max_lte_5": {
                         "$sum": {
-                            "$cond": [{"$lt": ["$temperatura.maxima", 0]}, 1, 0]
+                            "$cond": [{"$lte": ["$temperatura.maxima", 5]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_0": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.maxima", 0]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_30": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temperatura.minima", 30]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_25": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temperatura.minima", 25]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_20": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temperatura.minima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_20": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.minima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_15": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.minima", 15]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_10": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.minima", 10]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_5": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.minima", 5]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_0": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temperatura.minima", 0]}, 1, 0]
                         }
                     },
                     "temp_media_mes": {"$avg": "$temperatura.promedio"},
@@ -555,14 +600,23 @@ def estadisticas_destacadas(year=None, month=None):
                 "año": año_mes,
                 "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                               "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
-                "dias_calor_25": 0,
-                "dias_calor_30": 0,
-                "dias_calor_35": 0,
-                "dias_calor_20": 0,
-                "dias_frio_10": 0,
-                "dias_frio_15": 0,
-                "dias_frio_5": 0,
-                "dias_frio_0": 0,
+                "dias_max_gte_35": 0,
+                "dias_max_gte_30": 0,
+                "dias_max_gte_25": 0,
+                "dias_max_gt_20": 0,
+                "dias_max_lte_20": 0,
+                "dias_max_lte_15": 0,
+                "dias_max_lte_10": 0,   
+                "dias_max_lte_5": 0,
+                "dias_max_lte_0": 0,
+                "dias_min_gte_30": 0,
+                "dias_min_gte_25": 0,
+                "dias_min_gte_20": 0,
+                "dias_min_lte_20": 0,
+                "dias_min_lte_15": 0,
+                "dias_min_lte_10": 0,
+                "dias_min_lte_5": 0,
+                "dias_min_lte_0": 0,
                 "temperatura_media": 0,
                 "temperatura_maxima": 0,
                 "temperatura_minima": 0,
@@ -580,14 +634,23 @@ def estadisticas_destacadas(year=None, month=None):
         if stats_mes:
             mes_data = stats_mes[0]
             estadisticas["mes_seleccionado"].update({
-                "dias_calor_35": mes_data.get('dias_calor_35', 0),
-                "dias_calor_20": mes_data.get('dias_calor_20', 0),
-                "dias_calor_25": mes_data.get('dias_calor_25', 0),
-                "dias_calor_30": mes_data.get('dias_calor_30', 0),
-                "dias_frio_10": mes_data.get('dias_frio_10', 0),
-                "dias_frio_15": mes_data.get('dias_frio_15', 0),
-                "dias_frio_5": mes_data.get('dias_frio_5', 0),
-                "dias_frio_0": mes_data.get('dias_frio_0', 0),
+                "dias_max_gte_35": mes_data.get('dias_max_gte_35', 0),
+                "dias_max_gte_30": mes_data.get('dias_max_gte_30', 0),
+                "dias_max_gte_25": mes_data.get('dias_max_gte_25', 0),
+                "dias_max_gt_20": mes_data.get('dias_max_gt_20', 0),
+                "dias_max_lte_20": mes_data.get('dias_max_lte_20', 0),
+                "dias_max_lte_15": mes_data.get('dias_max_lte_15', 0),
+                "dias_max_lte_10": mes_data.get('dias_max_lte_10', 0),
+                "dias_max_lte_5": mes_data.get('dias_max_lte_5', 0),
+                "dias_max_lte_0": mes_data.get('dias_max_lte_0', 0),
+                "dias_min_gte_30": mes_data.get('dias_min_gte_30', 0),
+                "dias_min_gte_25": mes_data.get('dias_min_gte_25', 0),
+                "dias_min_gte_20": mes_data.get('dias_min_gte_20', 0),
+                "dias_min_lte_20": mes_data.get('dias_min_lte_20', 0),
+                "dias_min_lte_15": mes_data.get('dias_min_lte_15', 0),
+                "dias_min_lte_10": mes_data.get('dias_min_lte_10', 0),
+                "dias_min_lte_5": mes_data.get('dias_min_lte_5', 0),
+                "dias_min_lte_0": mes_data.get('dias_min_lte_0', 0),
                 "temperatura_media": round(mes_data.get('temp_media_mes', 0), 1),
                 "temperatura_maxima": mes_data.get('temp_maxima_mes', 0),
                 "temperatura_minima": mes_data.get('temp_minima_mes', 0),
