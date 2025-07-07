@@ -706,6 +706,78 @@ def estadisticas_destacadas(year=None, month=None):
         logging.error(f"Error en estadísticas destacadas: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+@historico_bp.route('/api/dashboard/estadisticas-datos-diarios')
+@historico_bp.route('/api/dashboard/estadisticas-datos-diarios/<int:year>/<int:month>')
+def estadisticas_datos_diarios(year=None, month=None):
+    """Datos diarios del mes especificado para gráficas"""
+    try:
+        logging.info(f"Dashboard datos diarios endpoint called - year: {year}, month: {month}")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        # Fecha actual
+        now = get_current_date()
+        
+        # Si no se especifican año y mes, usar el mes actual
+        if year is None or month is None:
+            año_mes = now.year
+            mes = now.month
+        else:
+            año_mes = year
+            mes = month
+        
+        # Pipeline para obtener datos diarios del mes
+        pipeline_datos_diarios = [
+            {
+                "$match": {
+                    "año": año_mes,
+                    "mes": mes
+                }
+            },
+            {
+                "$project": {
+                    "fecha": 1,
+                    "dia": 1,
+                    "temperatura": 1,
+                    "humedad": 1
+                }
+            },
+            {
+                "$sort": {"dia": 1}
+            }
+        ]
+        
+        # Si es el mes actual, obtener datos completos (sin caché)
+        if año_mes == now.year and mes == now.month:
+            datos_diarios = list(diario_collection.aggregate(pipeline_datos_diarios))
+        else:
+            # Si es mes anterior, usar caché
+            datos_diarios = get_historical_data_with_cache(diario_collection, pipeline_datos_diarios)
+        
+        # Formatear datos para el frontend
+        datos_formateados = []
+        for doc in datos_diarios:
+            datos_formateados.append({
+                "dia": doc['dia'],
+                "fecha": doc['fecha'],
+                "maxima": doc['temperatura']['maxima'],
+                "minima": doc['temperatura']['minima'],
+                "media": doc['temperatura']['promedio'],
+                "humedad_media": doc['humedad']['promedio']
+            })
+        
+        return jsonify({
+            "mes": mes,
+            "año": año_mes,
+            "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
+            "datos_diarios": datos_formateados
+        })
+        
+    except Exception as e:
+        logging.error(f"Error en datos diarios: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
 @historico_bp.route('/api/dashboard/cache/status')
 def cache_status():
     """Estado del caché histórico"""
