@@ -756,7 +756,7 @@ def estadisticas_datos_diarios(year=None, month=None):
         
         # Formatear datos para el frontend
         datos_formateados = []
-        for doc in datos_diarios:
+        for doc in datos_diarios or []:
             datos_formateados.append({
                 "dia": doc['dia'],
                 "fecha": doc['fecha'],
@@ -771,7 +771,7 @@ def estadisticas_datos_diarios(year=None, month=None):
             "año": año_mes,
             "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
-            "datos_diarios": datos_formateados
+            "datos_diarios": datos_formateados  # <-- SIEMPRE array, nunca None
         })
         
     except Exception as e:
