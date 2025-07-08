@@ -768,6 +768,7 @@ def estadisticas_datos_diarios(year=None, month=None):
         # Refuerzo: asegurar que siempre sea array
         if datos_formateados is None:
             datos_formateados = []
+        logging.info(f"Datos diarios formateados: {datos_formateados}")
         return jsonify({
             "mes": mes,
             "año": año_mes,
