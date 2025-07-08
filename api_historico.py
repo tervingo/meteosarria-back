@@ -765,13 +765,15 @@ def estadisticas_datos_diarios(year=None, month=None):
                 "media": doc['temperatura']['promedio'],
                 "humedad_media": doc['humedad']['promedio']
             })
-        
+        # Refuerzo: asegurar que siempre sea array
+        if datos_formateados is None:
+            datos_formateados = []
         return jsonify({
             "mes": mes,
             "año": año_mes,
             "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
                           "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
-            "datos_diarios": datos_formateados  # <-- SIEMPRE array, nunca None
+            "datos_diarios": datos_formateados
         })
         
     except Exception as e:
