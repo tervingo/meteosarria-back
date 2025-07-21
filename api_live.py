@@ -31,10 +31,15 @@ def live_weather():
         }).sort("timestamp", 1))
         
         # Calculate min and max temperatures for today
-        today_temps = [float(record['external_temperature']) 
-                      for record in today_records 
-                      if 'external_temperature' in record 
-                      and record['external_temperature'] is not None]
+        today_temps = []
+        for record in today_records:
+            if 'external_temperature' in record and record['external_temperature'] is not None:
+                try:
+                    temp_value = float(record['external_temperature'])
+                    today_temps.append(temp_value)
+                except (ValueError, TypeError):
+                    # Skip invalid temperature values like '--'
+                    continue
         
         max_temp = round(max(today_temps), 1) if today_temps else None
         min_temp = round(min(today_temps), 1) if today_temps else None
@@ -83,9 +88,4 @@ def live_weather():
         return jsonify(live_data)
     except Exception as e:
         logging.error(f"Error in live_weather endpoint: {e}")
-               # Añadir encabezados CORS manualmente
-        response.headers.add('Access-Control-Allow-Origin', 'https://meteosarria.com')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return jsonify({"error": "Internal server error"}), 500 
