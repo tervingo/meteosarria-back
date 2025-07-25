@@ -2,7 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Script para obtener datos meteorológicos de la estación de Burgos Villafría
-a través de la API de AEMET OpenData
+a través de la API de AEMET OpenData - VERSIÓN ACTUALIZADA
+
+Usa el endpoint específico de la estación para mayor eficiencia
 
 Autor: Script generado para acceso a datos AEMET
 Fecha: 2025
@@ -28,7 +30,7 @@ class AEMETWeatherAPI:
         self.session.headers.update({
             'api_key': self.api_key,
             'Accept': 'application/json',
-            'User-Agent': 'Python-AEMET-Client/1.0'
+            'User-Agent': 'Python-AEMET-Client/2.0'
         })
         
         # ID de la estación de Burgos Villafría
@@ -40,20 +42,24 @@ class AEMETWeatherAPI:
         """
         print("🔑 Verificando API key...")
         
-        # Probamos con un endpoint simple
-        url = f"{self.base_url}/observacion/convencional/todas"
+        # Probamos con el endpoint específico de Villafría
+        url = f"{self.base_url}/observacion/convencional/datos/estacion/{self.estacion_villafria}"
         
         try:
-            response = self.session.get(url, timeout=10)
+            response = self.session.get(url, timeout=15)
             print(f"Status Code: {response.status_code}")
             print(f"Headers de respuesta: {dict(response.headers)}")
             
             if response.status_code == 200:
-                print("✅ API key válida")
+                print("✅ API key válida y endpoint accesible")
                 return True
             elif response.status_code == 401:
                 print("❌ API key inválida o expirada")
                 print("Verifica que tu API key sea correcta y esté activa")
+                return False
+            elif response.status_code == 404:
+                print("❌ Estación no encontrada")
+                print("Verifica que el código de estación sea correcto")
                 return False
             elif response.status_code == 429:
                 print("⏳ Límite de peticiones alcanzado")
@@ -67,27 +73,22 @@ class AEMETWeatherAPI:
             print(f"❌ Error de conexión: {e}")
             return False
     
-    def obtener_datos_estacion(self, codigo_estacion=None):
+    def obtener_datos_estacion_villafria(self):
         """
-        Obtiene los datos meteorológicos de una estación específica
-        
-        Args:
-            codigo_estacion (str): Código de la estación (por defecto Villafría)
+        Obtiene los datos meteorológicos de la estación de Villafría
         
         Returns:
-            dict: Datos meteorológicos o None si hay error
+            dict: Datos meteorológicos más recientes o None si hay error
         """
-        if codigo_estacion is None:
-            codigo_estacion = self.estacion_villafria
-            
-        print(f"🌡️  Obteniendo datos de la estación {codigo_estacion}...")
+        print(f"🌡️  Obteniendo datos de Villafría (estación {self.estacion_villafria})...")
         
-        # Paso 1: Obtener todas las observaciones
-        url_observaciones = f"{self.base_url}/observacion/convencional/todas"
+        # Usar endpoint específico de la estación
+        url_estacion = f"{self.base_url}/observacion/convencional/datos/estacion/{self.estacion_villafria}"
         
         try:
             # Primera petición para obtener la URL de los datos
-            response = self.session.get(url_observaciones, timeout=10)
+            print(f"📡 Solicitando metadata: {url_estacion}")
+            response = self.session.get(url_estacion, timeout=15)
             
             if response.status_code != 200:
                 print(f"❌ Error en petición inicial: {response.status_code}")
@@ -96,17 +97,18 @@ class AEMETWeatherAPI:
             
             # Parsear respuesta JSON
             data = response.json()
+            print(f"📄 Respuesta de metadata: {data}")
             
             if 'datos' not in data:
                 print("❌ Respuesta no contiene campo 'datos'")
                 print(f"Respuesta completa: {data}")
                 return None
             
-            # Paso 2: Obtener los datos reales
+            # Segunda petición para obtener los datos reales
             url_datos = data['datos']
             print(f"📡 Obteniendo datos desde: {url_datos}")
             
-            response_datos = self.session.get(url_datos, timeout=10)
+            response_datos = self.session.get(url_datos, timeout=30)
             
             if response_datos.status_code != 200:
                 print(f"❌ Error obteniendo datos reales: {response_datos.status_code}")
@@ -114,18 +116,23 @@ class AEMETWeatherAPI:
             
             # Parsear datos meteorológicos
             observaciones = response_datos.json()
+            print(f"📋 Registros recibidos: {len(observaciones)}")
             
-            # Buscar la estación específica
-            for observacion in observaciones:
-                if observacion.get('idema') == codigo_estacion:
-                    return observacion
+            if len(observaciones) == 0:
+                print("❌ No se recibieron datos de la estación")
+                return None
             
-            print(f"❌ No se encontró la estación {codigo_estacion}")
-            print("Estaciones disponibles:")
-            for obs in observaciones[:5]:  # Mostrar solo las primeras 5
-                print(f"  - {obs.get('idema', 'N/A')}: {obs.get('ubi', 'Sin nombre')}")
+            # Tomar el registro más reciente (último en la lista)
+            observacion_actual = observaciones[-1] if isinstance(observaciones, list) else observaciones
             
-            return None
+            # Verificar que sea de Villafría
+            station_id = observacion_actual.get('idema')
+            station_name = observacion_actual.get('ubi', 'Sin nombre')
+            
+            print(f"✅ Datos de: {station_id} - {station_name}")
+            print(f"🕐 Hora observación: {observacion_actual.get('fint', 'N/A')}")
+            
+            return observacion_actual
             
         except requests.exceptions.RequestException as e:
             print(f"❌ Error de conexión: {e}")
@@ -164,13 +171,19 @@ class AEMETWeatherAPI:
             'dv': 'Dirección Viento (°)',
             'vmax': 'Racha Máxima (m/s)',
             'pres': 'Presión (hPa)',
-            'vis': 'Visibilidad (km)'
+            'vis': 'Visibilidad (km)',
+            'inso': 'Insolación (W/m²)',
+            'tpr': 'Punto de Rocío (°C)',
+            'ts': 'Temperatura Suelo (°C)',
+            'tss5cm': 'Temp. Suelo 5cm (°C)',
+            'tss20cm': 'Temp. Suelo 20cm (°C)'
         }
         
         resultado = []
         resultado.append("🌟 DATOS METEOROLÓGICOS - BURGOS VILLAFRÍA")
-        resultado.append("=" * 50)
+        resultado.append("=" * 55)
         
+        # Mostrar campos principales
         for clave, descripcion in campos.items():
             valor = datos.get(clave)
             if valor is not None and valor != "":
@@ -184,14 +197,29 @@ class AEMETWeatherAPI:
                     except:
                         pass
                 
-                resultado.append(f"{descripcion:.<25}: {valor}")
+                # Formateo especial para dirección del viento
+                elif clave == 'dv' and isinstance(valor, (int, float)):
+                    direcciones = [
+                        "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                        "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+                    ]
+                    index = round(float(valor) / 22.5) % 16
+                    direccion_texto = direcciones[index]
+                    valor = f"{valor}° ({direccion_texto})"
+                
+                # Formateo especial para velocidad del viento (convertir a km/h)
+                elif clave == 'vv' and isinstance(valor, (int, float)):
+                    kmh = round(float(valor) * 3.6, 1)
+                    valor = f"{valor} ({kmh} km/h)"
+                
+                resultado.append(f"{descripcion:.<30}: {valor}")
         
-        # Mostrar todos los campos disponibles (debug)
-        resultado.append("\n🔍 TODOS LOS CAMPOS DISPONIBLES:")
-        resultado.append("-" * 30)
+        # Mostrar campos adicionales disponibles
+        resultado.append("\n🔍 OTROS CAMPOS DISPONIBLES:")
+        resultado.append("-" * 35)
         for clave, valor in datos.items():
             if clave not in campos and valor is not None and valor != "":
-                resultado.append(f"{clave:.<25}: {valor}")
+                resultado.append(f"{clave:.<30}: {valor}")
         
         return "\n".join(resultado)
 
@@ -199,8 +227,8 @@ def main():
     """
     Función principal del script
     """
-    print("🌤️  Script de datos meteorológicos - Estación Burgos Villafría")
-    print("=" * 60)
+    print("🌤️  Script de datos meteorológicos - Estación Burgos Villafría v2.0")
+    print("=" * 70)
     
     # CONFIGURACIÓN: Reemplaza 'TU_API_KEY_AQUI' con tu clave real
     API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJqNGFsb25zb0BnbWFpbC5jb20iLCJqdGkiOiI2NWE3MWZmOS1jMjgzLTRmOTMtYjE5NS05YzQ1ZjBmNzI1YTgiLCJpc3MiOiJBRU1FVCIsImlhdCI6MTczOTUyNTYxOSwidXNlcklkIjoiNjVhNzFmZjktYzI4My00ZjkzLWIxOTUtOWM0NWYwZjcyNWE4Iiwicm9sZSI6IiJ9.6cauQ28EPJdrTPc5YIRl0UrIh_76uUP6WYYvIgJKU88"
@@ -223,10 +251,10 @@ def main():
         print("4. Verifica que la clave esté activa en tu perfil de AEMET")
         return
     
-    print("\n" + "="*60)
+    print("\n" + "="*70)
     
     # Obtener datos de Villafría
-    datos = api.obtener_datos_estacion()
+    datos = api.obtener_datos_estacion_villafria()
     
     if datos:
         print(api.formatear_datos(datos))

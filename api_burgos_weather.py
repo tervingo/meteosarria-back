@@ -40,44 +40,48 @@ class AEMETWeatherAPI:
         self.session.headers.update({
             'api_key': self.api_key,
             'Accept': 'application/json',
-            'User-Agent': 'Python-AEMET-Client/1.0'
+            'User-Agent': 'Python-AEMET-Client/2.0'
         })
         
         # ID de la estación de Burgos Villafría
         self.estacion_villafria = "2331"
     
-    def obtener_datos_estacion(self, codigo_estacion=None):
+    def obtener_datos_estacion_villafria(self):
         """
-        Obtiene los datos meteorológicos de una estación específica
-        """
-        if codigo_estacion is None:
-            codigo_estacion = self.estacion_villafria
-            
-        logger.info(f"Obteniendo datos de la estación {codigo_estacion}...")
+        Obtiene los datos meteorológicos de la estación de Villafría
         
-        # Paso 1: Obtener todas las observaciones
-        url_observaciones = f"{self.base_url}/observacion/convencional/todas"
+        Returns:
+            dict: Datos meteorológicos más recientes o None si hay error
+        """
+        logger.info(f"Obteniendo datos de Villafría (estación {self.estacion_villafria})...")
+        
+        # Usar endpoint específico de la estación
+        url_estacion = f"{self.base_url}/observacion/convencional/datos/estacion/{self.estacion_villafria}"
         
         try:
             # Primera petición para obtener la URL de los datos
-            response = self.session.get(url_observaciones, timeout=10)
+            logger.info(f"Solicitando metadata: {url_estacion}")
+            response = self.session.get(url_estacion, timeout=15)
             
             if response.status_code != 200:
                 logger.error(f"Error en petición inicial: {response.status_code}")
+                logger.error(f"Respuesta: {response.text}")
                 return None
             
             # Parsear respuesta JSON
             data = response.json()
+            logger.info(f"Respuesta de metadata: {data}")
             
             if 'datos' not in data:
                 logger.error("Respuesta no contiene campo 'datos'")
+                logger.error(f"Respuesta completa: {data}")
                 return None
             
-            # Paso 2: Obtener los datos reales
+            # Segunda petición para obtener los datos reales
             url_datos = data['datos']
             logger.info(f"Obteniendo datos desde: {url_datos}")
             
-            response_datos = self.session.get(url_datos, timeout=10)
+            response_datos = self.session.get(url_datos, timeout=30)
             
             if response_datos.status_code != 200:
                 logger.error(f"Error obteniendo datos reales: {response_datos.status_code}")
@@ -85,14 +89,23 @@ class AEMETWeatherAPI:
             
             # Parsear datos meteorológicos
             observaciones = response_datos.json()
+            logger.info(f"Registros recibidos: {len(observaciones)}")
             
-            # Buscar la estación específica
-            for observacion in observaciones:
-                if observacion.get('idema') == codigo_estacion:
-                    return observacion
+            if len(observaciones) == 0:
+                logger.error("No se recibieron datos de la estación")
+                return None
             
-            logger.error(f"No se encontró la estación {codigo_estacion}")
-            return None
+            # Tomar el registro más reciente (último en la lista)
+            observacion_actual = observaciones[-1] if isinstance(observaciones, list) else observaciones
+            
+            # Verificar que sea de Villafría
+            station_id = observacion_actual.get('idema')
+            station_name = observacion_actual.get('ubi', 'Sin nombre')
+            
+            logger.info(f"Datos de: {station_id} - {station_name}")
+            logger.info(f"Hora observación: {observacion_actual.get('fint', 'N/A')}")
+            
+            return observacion_actual
             
         except requests.exceptions.RequestException as e:
             logger.error(f"Error de conexión: {e}")
@@ -114,7 +127,7 @@ def get_burgos_weather():
         aemet_api = AEMETWeatherAPI(api_key)
         
         # Obtener datos de la estación de Burgos Villafría
-        datos_estacion = aemet_api.obtener_datos_estacion()
+        datos_estacion = aemet_api.obtener_datos_estacion_villafria()
         
         if not datos_estacion:
             logger.error("No se pudieron obtener los datos de la estación")
@@ -134,13 +147,32 @@ def get_burgos_weather():
         except:
             fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
+        # Calcular dirección del viento en texto
+        wind_direction_text = ""
+        wind_direction = datos_estacion.get("dv", 0)
+        if isinstance(wind_direction, (int, float)):
+            direcciones = [
+                "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+                "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
+            ]
+            index = round(float(wind_direction) / 22.5) % 16
+            wind_direction_text = direcciones[index]
+
+        # Convertir velocidad del viento a km/h
+        wind_speed_kmh = 0
+        wind_speed = datos_estacion.get("vv", 0)
+        if isinstance(wind_speed, (int, float)):
+            wind_speed_kmh = round(float(wind_speed) * 3.6, 1)
+
         # Estructurar los datos de respuesta
         weather_data = {
             "temperature": datos_estacion.get("ta", 0),  # Temperatura actual
             "humidity": datos_estacion.get("hr", 0),     # Humedad relativa
             "pressure": datos_estacion.get("pres", 0),   # Presión
-            "wind_speed": datos_estacion.get("vv", 0),   # Velocidad del viento
-            "wind_direction": datos_estacion.get("dv", 0), # Dirección del viento
+            "wind_speed": datos_estacion.get("vv", 0),   # Velocidad del viento (m/s)
+            "wind_speed_kmh": wind_speed_kmh,            # Velocidad del viento (km/h)
+            "wind_direction": datos_estacion.get("dv", 0), # Dirección del viento (grados)
+            "wind_direction_text": wind_direction_text,   # Dirección del viento (texto)
             "weather_overview": "Datos de AEMET",  # Descripción genérica
             "day_rain": datos_estacion.get("prec", 0),   # Precipitación
             "total_rain": round(total_rain, 1),           # Lluvia acumulada de MongoDB
@@ -152,7 +184,15 @@ def get_burgos_weather():
             "timestamp": datetime.now(pytz.UTC).isoformat(),
             "observation_time": fecha_obs,
             "station_id": datos_estacion.get("idema", ""),
-            "station_name": datos_estacion.get("ubi", "Burgos Villafría")
+            "station_name": datos_estacion.get("ubi", "Burgos Villafría"),
+            # Campos adicionales de AEMET
+            "visibility": datos_estacion.get("vis", 0),   # Visibilidad (km)
+            "insolation": datos_estacion.get("inso", 0),  # Insolación (W/m²)
+            "dew_point": datos_estacion.get("tpr", 0),    # Punto de rocío (°C)
+            "soil_temperature": datos_estacion.get("ts", 0), # Temperatura suelo (°C)
+            "soil_temp_5cm": datos_estacion.get("tss5cm", 0), # Temp suelo 5cm (°C)
+            "soil_temp_20cm": datos_estacion.get("tss20cm", 0), # Temp suelo 20cm (°C)
+            "wind_gust": datos_estacion.get("vmax", 0)    # Racha máxima (m/s)
         }
 
         return jsonify(weather_data)
