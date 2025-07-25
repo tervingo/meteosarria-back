@@ -6,7 +6,7 @@ from datetime import datetime
 import pytz
 from pymongo import MongoClient
 
-
+# Fetch data from AEMET
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
