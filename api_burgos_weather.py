@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify
 import logging
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 from pymongo import MongoClient
 
@@ -267,9 +267,14 @@ def get_burgos_weather():
         if fecha_obs:
             try:
                 if 'T' in fecha_obs:
-                    fecha_obs = fecha_obs.replace('Z', '+00:00')
+                    # Parsear fecha UTC
+                    fecha_obs = fecha_obs.replace('Z', '')
                     fecha_utc = datetime.fromisoformat(fecha_obs)
-                    fecha_local = fecha_utc.replace(tzinfo=pytz.UTC).astimezone(pytz.timezone('Europe/Madrid'))
+                    # Convertir a hora local española usando pytz
+                    fecha_utc = fecha_utc.replace(tzinfo=pytz.UTC)
+                    fecha_local = fecha_utc.astimezone(pytz.timezone('Europe/Madrid'))
+                    # Mantener solo la hora (minutos a 00) como hacen las observaciones de AEMET
+                    fecha_local = fecha_local.replace(minute=0, second=0, microsecond=0)
                     fecha_obs = fecha_local.strftime("%Y-%m-%d %H:%M:%S")
             except Exception as e:
                 logger.warning(f"Error convirtiendo fecha de observación: {e}")
