@@ -261,10 +261,20 @@ def get_burgos_weather():
         last_rain_record = rain_collection.find_one(sort=[("date", -1)])
         total_rain = last_rain_record['accumulated'] if last_rain_record else 0
 
-        # Usar la fecha de observación que ya viene formateada de AEMET
-        fecha_obs = datos_estacion.get('observation_time', '')
-        logger.info(f"Fecha de observación: {fecha_obs}")
-        if not fecha_obs:
+        # Usar la fecha de observación 'fint' de AEMET y convertirla a hora local
+        fecha_obs = datos_estacion.get('fint', '')
+        logger.info(f"Fecha de observación (UTC): {fecha_obs}")
+        if fecha_obs:
+            try:
+                if 'T' in fecha_obs:
+                    fecha_obs = fecha_obs.replace('Z', '+00:00')
+                    fecha_utc = datetime.fromisoformat(fecha_obs)
+                    fecha_local = fecha_utc.replace(tzinfo=pytz.UTC).astimezone(pytz.timezone('Europe/Madrid'))
+                    fecha_obs = fecha_local.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception as e:
+                logger.warning(f"Error convirtiendo fecha de observación: {e}")
+                fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        else:
             fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # Calcular dirección del viento en texto
