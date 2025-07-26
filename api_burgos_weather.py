@@ -251,6 +251,7 @@ def get_burgos_weather():
         
         # Obtener datos de la estación de Burgos Villafría con máximas/minimas diarias
         datos_estacion = aemet_api.obtener_datos_completos_villafria()
+        logger.info(f"Datos de la estación: {datos_estacion}")
         
         if not datos_estacion:
             logger.error("No se pudieron obtener los datos de la estación")
