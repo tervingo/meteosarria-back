@@ -262,6 +262,7 @@ def get_burgos_weather():
 
         # Usar la fecha de observación que ya viene formateada de AEMET
         fecha_obs = datos_estacion.get('observation_time', '')
+        logger.info(f"Fecha de observación: {fecha_obs}")
         if not fecha_obs:
             fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
