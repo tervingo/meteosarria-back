@@ -114,6 +114,129 @@ class AEMETWeatherAPI:
             logger.error(f"Error inesperado: {e}")
             return None
 
+    def calcular_max_min_diarias(self, observaciones):
+        """
+        Calcula las máximas y mínimas diarias reales desde las 00:00 hasta la actual
+        
+        Args:
+            observaciones (list): Lista de observaciones horarias
+            
+        Returns:
+            tuple: (max_temp_diaria, min_temp_diaria)
+        """
+        from datetime import datetime, timezone
+        
+        # Obtener fecha actual
+        hoy = datetime.now().date()
+        
+        # Filtrar observaciones de hoy
+        observaciones_hoy = []
+        for obs in observaciones:
+            try:
+                # Parsear fecha de observación
+                fecha_str = obs.get('fint', '')
+                if 'T' in fecha_str:
+                    fecha_str = fecha_str.replace('Z', '+00:00')
+                    fecha_obs = datetime.fromisoformat(fecha_str)
+                    # Convertir a hora local (UTC+1 en España)
+                    fecha_obs = fecha_obs.replace(tzinfo=timezone.utc).astimezone()
+                    
+                    # Verificar que sea de hoy
+                    if fecha_obs.date() == hoy:
+                        observaciones_hoy.append(obs)
+            except Exception as e:
+                logger.warning(f"Error parseando fecha: {e}")
+                continue
+        
+        logger.info(f"Observaciones de hoy: {len(observaciones_hoy)}")
+        
+        # Calcular máximas y mínimas
+        temperaturas = []
+        for obs in observaciones_hoy:
+            temp = obs.get('ta')
+            if temp is not None and temp != "":
+                try:
+                    temperaturas.append(float(temp))
+                except (ValueError, TypeError):
+                    continue
+        
+        if temperaturas:
+            max_temp_diaria = max(temperaturas)
+            min_temp_diaria = min(temperaturas)
+            logger.info(f"Temperaturas de hoy: {len(temperaturas)} registros, Max: {max_temp_diaria}°C, Min: {min_temp_diaria}°C")
+            return max_temp_diaria, min_temp_diaria
+        else:
+            logger.warning("No se encontraron temperaturas válidas para hoy")
+            return None, None
+
+    def obtener_datos_completos_villafria(self):
+        """
+        Obtiene los datos meteorológicos completos de Villafría con cálculo de máximas/minimas diarias
+        
+        Returns:
+            dict: Datos meteorológicos con máximas/minimas diarias calculadas
+        """
+        logger.info(f"Obteniendo datos completos de Villafría (estación {self.estacion_villafria})...")
+        
+        # Usar endpoint específico de la estación
+        url_estacion = f"{self.base_url}/observacion/convencional/datos/estacion/{self.estacion_villafria}"
+        
+        try:
+            # Primera petición para obtener la URL de los datos
+            logger.info(f"Solicitando metadata: {url_estacion}")
+            response = self.session.get(url_estacion, timeout=15)
+            
+            if response.status_code != 200:
+                logger.error(f"Error en petición inicial: {response.status_code}")
+                logger.error(f"Respuesta: {response.text}")
+                return None
+            
+            # Parsear respuesta JSON
+            data = response.json()
+            
+            if 'datos' not in data:
+                logger.error("Respuesta no contiene campo 'datos'")
+                return None
+            
+            # Segunda petición para obtener los datos reales
+            url_datos = data['datos']
+            logger.info(f"Obteniendo datos desde: {url_datos}")
+            
+            response_datos = self.session.get(url_datos, timeout=30)
+            
+            if response_datos.status_code != 200:
+                logger.error(f"Error obteniendo datos reales: {response_datos.status_code}")
+                return None
+            
+            # Parsear datos meteorológicos
+            observaciones = response_datos.json()
+            logger.info(f"Registros recibidos: {len(observaciones)}")
+            
+            if len(observaciones) == 0:
+                logger.error("No se recibieron datos de la estación")
+                return None
+            
+            # Tomar el registro más reciente
+            observacion_actual = observaciones[-1] if isinstance(observaciones, list) else observaciones
+            
+            # Calcular máximas y mínimas diarias
+            max_temp_diaria, min_temp_diaria = self.calcular_max_min_diarias(observaciones)
+            
+            # Agregar las máximas y mínimas calculadas al registro actual
+            if max_temp_diaria is not None:
+                observacion_actual['tamax_diaria'] = max_temp_diaria
+            if min_temp_diaria is not None:
+                observacion_actual['tamin_diaria'] = min_temp_diaria
+            
+            return observacion_actual
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error de conexión: {e}")
+            return None
+        except Exception as e:
+            logger.error(f"Error inesperado: {e}")
+            return None
+
 @burgos_bp.route('/api/burgos-weather', methods=['GET'])
 def get_burgos_weather():
     try:
@@ -126,8 +249,8 @@ def get_burgos_weather():
         # Crear instancia de la API de AEMET
         aemet_api = AEMETWeatherAPI(api_key)
         
-        # Obtener datos de la estación de Burgos Villafría
-        datos_estacion = aemet_api.obtener_datos_estacion_villafria()
+        # Obtener datos de la estación de Burgos Villafría con máximas/minimas diarias
+        datos_estacion = aemet_api.obtener_datos_completos_villafria()
         
         if not datos_estacion:
             logger.error("No se pudieron obtener los datos de la estación")
@@ -176,8 +299,8 @@ def get_burgos_weather():
             "weather_overview": "Datos de AEMET",  # Descripción genérica
             "day_rain": datos_estacion.get("prec", 0),   # Precipitación
             "total_rain": round(total_rain, 1),           # Lluvia acumulada de MongoDB
-            "max_temperature": datos_estacion.get("tamax", datos_estacion.get("ta", 0)), # Temp máxima
-            "min_temperature": datos_estacion.get("tamin", datos_estacion.get("ta", 0)), # Temp mínima
+            "max_temperature": datos_estacion.get("tamax_diaria", datos_estacion.get("tamax", datos_estacion.get("ta", 0))), # Temp máxima diaria calculada
+            "min_temperature": datos_estacion.get("tamin_diaria", datos_estacion.get("tamin", datos_estacion.get("ta", 0))), # Temp mínima diaria calculada
             "clouds": 0,  # AEMET no proporciona datos de nubes
             "icon": "01d",  # Icono por defecto
             "description": "Datos de estación AEMET",
