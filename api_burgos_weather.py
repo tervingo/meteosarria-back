@@ -276,6 +276,8 @@ def get_burgos_weather():
                     # Mantener solo la hora (minutos a 00) como hacen las observaciones de AEMET
                     fecha_local = fecha_local.replace(minute=0, second=0, microsecond=0)
                     fecha_obs = fecha_local.strftime("%Y-%m-%d %H:%M:%S")
+                    logger.info(f"Fecha de observación (local): {fecha_local}")
+                    logger.info(f"Fecha de observación: {fecha_local.strftime('%Y-%m-%d %H:%M:%S')}")
             except Exception as e:
                 logger.warning(f"Error convirtiendo fecha de observación: {e}")
                 fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
