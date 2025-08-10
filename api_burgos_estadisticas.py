@@ -18,21 +18,21 @@ def get_records_absolutos():
     """Obtener temperaturas máxima y mínima absolutas de toda la serie histórica"""
     try:
         # Buscar temperatura máxima absoluta
-        max_temp = burgos_collection.find().sort("temp_max", -1).limit(1)
+        max_temp = burgos_collection.find({"temp_maxima": {"$ne": None}}).sort("temp_maxima", -1).limit(1)
         max_temp_doc = list(max_temp)[0] if max_temp else None
         
         # Buscar temperatura mínima absoluta
-        min_temp = burgos_collection.find().sort("temp_min", 1).limit(1)
+        min_temp = burgos_collection.find({"temp_minima": {"$ne": None}}).sort("temp_minima", 1).limit(1)
         min_temp_doc = list(min_temp)[0] if min_temp else None
         
         result = {
             'temp_max_absoluta': {
-                'valor': max_temp_doc['temp_max'] if max_temp_doc else None,
-                'fecha': max_temp_doc['fecha'].isoformat() if max_temp_doc and max_temp_doc.get('fecha') else None
+                'valor': max_temp_doc['temp_maxima'] if max_temp_doc else None,
+                'fecha': max_temp_doc['fecha'] if max_temp_doc and max_temp_doc.get('fecha') else None
             },
             'temp_min_absoluta': {
-                'valor': min_temp_doc['temp_min'] if min_temp_doc else None,
-                'fecha': min_temp_doc['fecha'].isoformat() if min_temp_doc and min_temp_doc.get('fecha') else None
+                'valor': min_temp_doc['temp_minima'] if min_temp_doc else None,
+                'fecha': min_temp_doc['fecha'] if min_temp_doc and min_temp_doc.get('fecha') else None
             }
         }
         
@@ -48,22 +48,28 @@ def get_records_por_decada():
         pipeline = [
             {
                 '$addFields': {
-                    'año': {'$year': '$fecha'},
+                    'año': {'$year': '$fecha_datetime'},
                     'decada': {
                         '$multiply': [
-                            {'$floor': {'$divide': [{'$year': '$fecha'}, 10]}},
+                            {'$floor': {'$divide': [{'$year': '$fecha_datetime'}, 10]}},
                             10
                         ]
                     }
                 }
             },
             {
+                '$match': {
+                    'temp_maxima': {'$ne': None},
+                    'temp_minima': {'$ne': None}
+                }
+            },
+            {
                 '$group': {
                     '_id': '$decada',
-                    'temp_max': {'$max': '$temp_max'},
-                    'temp_min': {'$min': '$temp_min'},
-                    'docs_max': {'$push': {'temp': '$temp_max', 'fecha': '$fecha'}},
-                    'docs_min': {'$push': {'temp': '$temp_min', 'fecha': '$fecha'}}
+                    'temp_max': {'$max': '$temp_maxima'},
+                    'temp_min': {'$min': '$temp_minima'},
+                    'docs_max': {'$push': {'temp': '$temp_maxima', 'fecha': '$fecha'}},
+                    'docs_min': {'$push': {'temp': '$temp_minima', 'fecha': '$fecha'}}
                 }
             },
             {'$sort': {'_id': 1}}
@@ -94,9 +100,9 @@ def get_records_por_decada():
             records_por_decada.append({
                 'decada': decada,
                 'temp_max': temp_max,
-                'fecha_max': fecha_max.isoformat() if fecha_max else None,
+                'fecha_max': fecha_max,
                 'temp_min': temp_min,
-                'fecha_min': fecha_min.isoformat() if fecha_min else None
+                'fecha_min': fecha_min
             })
         
         return jsonify(records_por_decada)
@@ -110,14 +116,20 @@ def get_temperatura_media_decada():
     try:
         pipeline = [
             {
+                '$match': {
+                    'temp_maxima': {'$ne': None},
+                    'temp_minima': {'$ne': None}
+                }
+            },
+            {
                 '$addFields': {
                     'decada': {
                         '$multiply': [
-                            {'$floor': {'$divide': [{'$year': '$fecha'}, 10]}},
+                            {'$floor': {'$divide': [{'$year': '$fecha_datetime'}, 10]}},
                             10
                         ]
                     },
-                    'temp_media': {'$divide': [{'$add': ['$temp_max', '$temp_min']}, 2]}
+                    'temp_media': {'$divide': [{'$add': ['$temp_maxima', '$temp_minima']}, 2]}
                 }
             },
             {
@@ -149,13 +161,13 @@ def get_dias_calurosos_anual():
     try:
         pipeline = [
             {
-                '$addFields': {
-                    'año': {'$year': '$fecha'}
+                '$match': {
+                    'temp_maxima': {'$gt': 30}
                 }
             },
             {
-                '$match': {
-                    'temp_max': {'$gt': 30}
+                '$addFields': {
+                    'año': {'$year': '$fecha_datetime'}
                 }
             },
             {
@@ -198,13 +210,13 @@ def get_dias_torridos_anual():
     try:
         pipeline = [
             {
-                '$addFields': {
-                    'año': {'$year': '$fecha'}
+                '$match': {
+                    'temp_maxima': {'$gt': 35}
                 }
             },
             {
-                '$match': {
-                    'temp_max': {'$gt': 35}
+                '$addFields': {
+                    'año': {'$year': '$fecha_datetime'}
                 }
             },
             {
@@ -246,7 +258,7 @@ def get_rachas_calurosas_anual():
     """Obtener número máximo de días consecutivos con temperatura máxima > 30°C por año"""
     try:
         # Obtener todos los datos ordenados por fecha
-        cursor = burgos_collection.find({}, {'fecha': 1, 'temp_max': 1}).sort('fecha', 1)
+        cursor = burgos_collection.find({}, {'fecha_datetime': 1, 'temp_maxima': 1}).sort('fecha_datetime', 1)
         datos = list(cursor)
         
         rachas_por_año = defaultdict(int)
@@ -254,19 +266,19 @@ def get_rachas_calurosas_anual():
         # Agrupar por año
         datos_por_año = defaultdict(list)
         for dato in datos:
-            if dato.get('fecha') and dato.get('temp_max') is not None:
-                año = dato['fecha'].year
+            if dato.get('fecha_datetime') and dato.get('temp_maxima') is not None:
+                año = dato['fecha_datetime'].year
                 datos_por_año[año].append(dato)
         
         # Calcular rachas para cada año
         for año, datos_año in datos_por_año.items():
-            datos_año.sort(key=lambda x: x['fecha'])
+            datos_año.sort(key=lambda x: x['fecha_datetime'])
             
             racha_actual = 0
             racha_maxima = 0
             
             for dato in datos_año:
-                if dato['temp_max'] > 30:
+                if dato['temp_maxima'] > 30:
                     racha_actual += 1
                     racha_maxima = max(racha_maxima, racha_actual)
                 else:
@@ -295,7 +307,7 @@ def get_rachas_torridas_anual():
     """Obtener número máximo de días consecutivos con temperatura máxima > 35°C por año"""
     try:
         # Obtener todos los datos ordenados por fecha
-        cursor = burgos_collection.find({}, {'fecha': 1, 'temp_max': 1}).sort('fecha', 1)
+        cursor = burgos_collection.find({}, {'fecha_datetime': 1, 'temp_maxima': 1}).sort('fecha_datetime', 1)
         datos = list(cursor)
         
         rachas_por_año = defaultdict(int)
@@ -303,19 +315,19 @@ def get_rachas_torridas_anual():
         # Agrupar por año
         datos_por_año = defaultdict(list)
         for dato in datos:
-            if dato.get('fecha') and dato.get('temp_max') is not None:
-                año = dato['fecha'].year
+            if dato.get('fecha_datetime') and dato.get('temp_maxima') is not None:
+                año = dato['fecha_datetime'].year
                 datos_por_año[año].append(dato)
         
         # Calcular rachas para cada año
         for año, datos_año in datos_por_año.items():
-            datos_año.sort(key=lambda x: x['fecha'])
+            datos_año.sort(key=lambda x: x['fecha_datetime'])
             
             racha_actual = 0
             racha_maxima = 0
             
             for dato in datos_año:
-                if dato['temp_max'] > 35:
+                if dato['temp_maxima'] > 35:
                     racha_actual += 1
                     racha_maxima = max(racha_maxima, racha_actual)
                 else:
