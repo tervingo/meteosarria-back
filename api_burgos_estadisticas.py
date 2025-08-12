@@ -349,3 +349,22 @@ def get_rachas_torridas_anual():
         return jsonify(rachas_torridas)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@burgos_stats_bp.route('/api/burgos-estadisticas/ultimo-registro', methods=['GET'])
+def get_ultimo_registro():
+    """Obtener la fecha del último registro en la base de datos"""
+    try:
+        # Buscar el documento con la fecha más reciente
+        ultimo_doc = burgos_collection.find().sort("fecha_datetime", -1).limit(1)
+        ultimo_doc = list(ultimo_doc)
+        
+        if ultimo_doc:
+            fecha_datetime = ultimo_doc[0]['fecha_datetime']
+            ultima_fecha = fecha_datetime.strftime('%Y-%m-%d')
+            return jsonify({'ultimaFecha': ultima_fecha})
+        else:
+            return jsonify({'ultimaFecha': None})
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
