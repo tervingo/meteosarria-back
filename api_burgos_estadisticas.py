@@ -411,14 +411,42 @@ def get_noches_tropicales_anual():
 def get_ultimo_registro():
     """Obtener la fecha del último registro en la base de datos"""
     try:
-        # Buscar el documento con la fecha más reciente
-        ultimo_doc = burgos_collection.find().sort("fecha_datetime", -1).limit(1)
-        ultimo_doc = list(ultimo_doc)
+        # Buscar el documento con la fecha más reciente usando ambos campos de fecha
+        ultimo_doc_datetime = burgos_collection.find({"fecha_datetime": {"$ne": None}}).sort("fecha_datetime", -1).limit(1)
+        ultimo_doc_fecha = burgos_collection.find({"fecha": {"$ne": None}}).sort("fecha", -1).limit(1)
         
-        if ultimo_doc:
-            fecha_datetime = ultimo_doc[0]['fecha_datetime']
+        doc_datetime = list(ultimo_doc_datetime)
+        doc_fecha = list(ultimo_doc_fecha)
+        
+        # Comparar ambas fechas y usar la más reciente
+        if doc_datetime and doc_fecha:
+            fecha_datetime_val = doc_datetime[0]['fecha_datetime']
+            fecha_val = doc_fecha[0]['fecha']
+            
+            # Convertir fecha string a datetime para comparar si es necesario
+            if isinstance(fecha_val, str):
+                from datetime import datetime as dt
+                fecha_val_dt = dt.strptime(fecha_val, '%Y-%m-%d')
+            else:
+                fecha_val_dt = fecha_val
+            
+            # Usar la fecha más reciente
+            if fecha_datetime_val.date() >= fecha_val_dt.date():
+                ultima_fecha = fecha_datetime_val.strftime('%Y-%m-%d')
+            else:
+                ultima_fecha = fecha_val_dt.strftime('%Y-%m-%d')
+                
+            return jsonify({'ultimaFecha': ultima_fecha})
+        elif doc_datetime:
+            fecha_datetime = doc_datetime[0]['fecha_datetime']
             ultima_fecha = fecha_datetime.strftime('%Y-%m-%d')
             return jsonify({'ultimaFecha': ultima_fecha})
+        elif doc_fecha:
+            if isinstance(doc_fecha[0]['fecha'], str):
+                return jsonify({'ultimaFecha': doc_fecha[0]['fecha']})
+            else:
+                ultima_fecha = doc_fecha[0]['fecha'].strftime('%Y-%m-%d')
+                return jsonify({'ultimaFecha': ultima_fecha})
         else:
             return jsonify({'ultimaFecha': None})
             
