@@ -25,6 +25,14 @@ def get_records_absolutos():
         min_temp = burgos_collection.find({"temp_minima": {"$ne": None}}).sort("temp_minima", 1).limit(1)
         min_temp_doc = list(min_temp)[0] if min_temp else None
         
+        # Buscar temperatura mínima más alta de la serie
+        min_temp_max = burgos_collection.find({"temp_minima": {"$ne": None}}).sort("temp_minima", -1).limit(1)
+        min_temp_max_doc = list(min_temp_max)[0] if min_temp_max else None
+        
+        # Buscar temperatura máxima más baja de la serie
+        max_temp_min = burgos_collection.find({"temp_maxima": {"$ne": None}}).sort("temp_maxima", 1).limit(1)
+        max_temp_min_doc = list(max_temp_min)[0] if max_temp_min else None
+        
         result = {
             'temp_max_absoluta': {
                 'valor': max_temp_doc['temp_maxima'] if max_temp_doc else None,
@@ -33,6 +41,14 @@ def get_records_absolutos():
             'temp_min_absoluta': {
                 'valor': min_temp_doc['temp_minima'] if min_temp_doc else None,
                 'fecha': min_temp_doc['fecha'] if min_temp_doc and min_temp_doc.get('fecha') else None
+            },
+            'temp_min_mas_alta': {
+                'valor': min_temp_max_doc['temp_minima'] if min_temp_max_doc else None,
+                'fecha': min_temp_max_doc['fecha'] if min_temp_max_doc and min_temp_max_doc.get('fecha') else None
+            },
+            'temp_max_mas_baja': {
+                'valor': max_temp_min_doc['temp_maxima'] if max_temp_min_doc else None,
+                'fecha': max_temp_min_doc['fecha'] if max_temp_min_doc and max_temp_min_doc.get('fecha') else None
             }
         }
         
