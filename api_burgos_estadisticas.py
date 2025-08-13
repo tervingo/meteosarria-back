@@ -358,6 +358,55 @@ def get_rachas_torridas_anual():
         return jsonify({'error': str(e)}), 500
 
 
+@burgos_stats_bp.route('/api/burgos-estadisticas/noches-tropicales-anual', methods=['GET'])
+def get_noches_tropicales_anual():
+    """Obtener número de noches con temperatura mínima > 20°C por año"""
+    try:
+        pipeline = [
+            {
+                '$match': {
+                    'temp_minima': {'$gt': 20}
+                }
+            },
+            {
+                '$addFields': {
+                    'año': {'$year': '$fecha_datetime'}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$año',
+                    'noches_min_gt_20': {'$sum': 1}
+                }
+            },
+            {'$sort': {'_id': 1}}
+        ]
+        
+        results = list(burgos_collection.aggregate(pipeline))
+        
+        # Crear lista completa de años con 0 noches si no hay datos
+        años_completos = {}
+        año_inicial = 1970
+        año_actual = datetime.now().year
+        
+        for año in range(año_inicial, año_actual + 1):
+            años_completos[año] = 0
+        
+        for result in results:
+            años_completos[result['_id']] = result['noches_min_gt_20']
+        
+        noches_tropicales = []
+        for año, noches in años_completos.items():
+            noches_tropicales.append({
+                'año': año,
+                'noches_min_gt_20': noches
+            })
+        
+        return jsonify(noches_tropicales)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @burgos_stats_bp.route('/api/burgos-estadisticas/ultimo-registro', methods=['GET'])
 def get_ultimo_registro():
     """Obtener la fecha del último registro en la base de datos"""
