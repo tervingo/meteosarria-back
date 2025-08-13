@@ -60,7 +60,8 @@ def get_records_por_decada():
             {
                 '$match': {
                     'temp_maxima': {'$ne': None},
-                    'temp_minima': {'$ne': None}
+                    'temp_minima': {'$ne': None},
+                    'año': {'$gte': 1970}
                 }
             },
             {
@@ -116,9 +117,15 @@ def get_temperatura_media_decada():
     try:
         pipeline = [
             {
+                '$addFields': {
+                    'año': {'$year': '$fecha_datetime'}
+                }
+            },
+            {
                 '$match': {
                     'temp_maxima': {'$ne': None},
-                    'temp_minima': {'$ne': None}
+                    'temp_minima': {'$ne': None},
+                    'año': {'$gte': 1970}
                 }
             },
             {
