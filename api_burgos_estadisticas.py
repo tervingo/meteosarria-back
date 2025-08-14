@@ -468,3 +468,300 @@ def get_ultimo_registro():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@burgos_stats_bp.route('/api/burgos-estadisticas/estadisticas')
+@burgos_stats_bp.route('/api/burgos-estadisticas/estadisticas/<int:year>/<int:month>')
+def estadisticas_mes(year=None, month=None):
+    """Estadísticas mensuales de temperaturas de Burgos"""
+    try:
+        # Si no se especifican año y mes, usar el mes actual
+        if year is None or month is None:
+            now = datetime.now()
+            año_mes = now.year
+            mes = now.month
+        else:
+            año_mes = year
+            mes = month
+        
+        # Pipeline para estadísticas del mes especificado
+        pipeline_mes = [
+            {
+                "$match": {
+                    "$expr": {
+                        "$and": [
+                            {"$eq": [{"$year": "$fecha_datetime"}, año_mes]},
+                            {"$eq": [{"$month": "$fecha_datetime"}, mes]}
+                        ]
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "dias_max_gte_35": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_maxima", 35]}, 1, 0]
+                        }
+                    },
+                    "dias_max_gte_30": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_maxima", 30]}, 1, 0]
+                        }
+                    },
+                    "dias_max_gte_25": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_maxima", 25]}, 1, 0]
+                        }
+                    },
+                    "dias_max_gt_20": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temp_maxima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_20": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_maxima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_15": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_maxima", 15]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_10": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_maxima", 10]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_5": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_maxima", 5]}, 1, 0]
+                        }
+                    },
+                    "dias_max_lte_0": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_maxima", 0]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_30": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_minima", 30]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_25": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_minima", 25]}, 1, 0]
+                        }
+                    },
+                    "dias_min_gte_20": {
+                        "$sum": {
+                            "$cond": [{"$gte": ["$temp_minima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_20": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 20]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_15": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 15]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_10": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 10]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_5": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 5]}, 1, 0]
+                        }
+                    },
+                    "dias_min_lte_0": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 0]}, 1, 0]
+                        }
+                    },
+                    "temperatura_media": {
+                        "$avg": {
+                            "$divide": [
+                                {"$add": ["$temp_maxima", "$temp_minima"]}, 2
+                            ]
+                        }
+                    },
+                    "temperatura_maxima": {"$max": "$temp_maxima"},
+                    "temperatura_minima": {"$min": "$temp_minima"},
+                    "dias_helada": {
+                        "$sum": {
+                            "$cond": [{"$lte": ["$temp_minima", 0]}, 1, 0]
+                        }
+                    },
+                    "total_dias": {"$sum": 1}
+                }
+            }
+        ]
+        
+        stats_mes = list(burgos_collection.aggregate(pipeline_mes))
+        
+        # Verificar si hay record mensual histórico
+        pipeline_record_mes = [
+            {
+                "$match": {
+                    "$expr": {
+                        "$and": [
+                            {"$eq": [{"$month": "$fecha_datetime"}, mes]},
+                            {"$ne": [{"$year": "$fecha_datetime"}, año_mes]}
+                        ]
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "record_historico": {"$max": "$temp_maxima"}
+                }
+            }
+        ]
+        
+        record_mes = list(burgos_collection.aggregate(pipeline_record_mes))
+        
+        # Preparar respuesta
+        estadisticas = {
+            "mes_seleccionado": {
+                "mes": mes,
+                "año": año_mes,
+                "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                              "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
+                "dias_max_gte_35": 0,
+                "dias_max_gte_30": 0,
+                "dias_max_gte_25": 0,
+                "dias_max_gt_20": 0,
+                "dias_max_lte_20": 0,
+                "dias_max_lte_15": 0,
+                "dias_max_lte_10": 0,   
+                "dias_max_lte_5": 0,
+                "dias_max_lte_0": 0,
+                "dias_min_gte_30": 0,
+                "dias_min_gte_25": 0,
+                "dias_min_gte_20": 0,
+                "dias_min_lte_20": 0,
+                "dias_min_lte_15": 0,
+                "dias_min_lte_10": 0,
+                "dias_min_lte_5": 0,
+                "dias_min_lte_0": 0,
+                "temperatura_media": 0,
+                "temperatura_maxima": 0,
+                "temperatura_minima": 0,
+                "dias_helada": 0,
+                "record_mes": False,
+                "total_dias": 0
+            }
+        }
+        
+        if stats_mes:
+            mes_data = stats_mes[0]
+            estadisticas["mes_seleccionado"].update({
+                "dias_max_gte_35": mes_data.get('dias_max_gte_35', 0),
+                "dias_max_gte_30": mes_data.get('dias_max_gte_30', 0),
+                "dias_max_gte_25": mes_data.get('dias_max_gte_25', 0),
+                "dias_max_gt_20": mes_data.get('dias_max_gt_20', 0),
+                "dias_max_lte_20": mes_data.get('dias_max_lte_20', 0),
+                "dias_max_lte_15": mes_data.get('dias_max_lte_15', 0),
+                "dias_max_lte_10": mes_data.get('dias_max_lte_10', 0),
+                "dias_max_lte_5": mes_data.get('dias_max_lte_5', 0),
+                "dias_max_lte_0": mes_data.get('dias_max_lte_0', 0),
+                "dias_min_gte_30": mes_data.get('dias_min_gte_30', 0),
+                "dias_min_gte_25": mes_data.get('dias_min_gte_25', 0),
+                "dias_min_gte_20": mes_data.get('dias_min_gte_20', 0),
+                "dias_min_lte_20": mes_data.get('dias_min_lte_20', 0),
+                "dias_min_lte_15": mes_data.get('dias_min_lte_15', 0),
+                "dias_min_lte_10": mes_data.get('dias_min_lte_10', 0),
+                "dias_min_lte_5": mes_data.get('dias_min_lte_5', 0),
+                "dias_min_lte_0": mes_data.get('dias_min_lte_0', 0),
+                "temperatura_media": round(mes_data.get('temperatura_media', 0), 1) if mes_data.get('temperatura_media') else 0,
+                "temperatura_maxima": mes_data.get('temperatura_maxima', 0),
+                "temperatura_minima": mes_data.get('temperatura_minima', 0),
+                "dias_helada": mes_data.get('dias_helada', 0),
+                "total_dias": mes_data.get('total_dias', 0)
+            })
+            
+            # Verificar record mensual
+            if record_mes and mes_data.get('temperatura_maxima'):
+                record_historico = record_mes[0].get('record_historico', 0)
+                estadisticas["mes_seleccionado"]["record_mes"] = mes_data['temperatura_maxima'] > record_historico
+        
+        return jsonify(estadisticas)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@burgos_stats_bp.route('/api/burgos-estadisticas/estadisticas-datos-diarios')
+@burgos_stats_bp.route('/api/burgos-estadisticas/estadisticas-datos-diarios/<int:year>/<int:month>')
+def estadisticas_datos_diarios(year=None, month=None):
+    """Datos diarios del mes especificado para gráficas de Burgos"""
+    try:
+        # Si no se especifican año y mes, usar el mes actual
+        if year is None or month is None:
+            now = datetime.now()
+            año_mes = now.year
+            mes = now.month
+        else:
+            año_mes = year
+            mes = month
+        
+        # Pipeline para obtener datos diarios del mes
+        pipeline_datos_diarios = [
+            {
+                "$match": {
+                    "$expr": {
+                        "$and": [
+                            {"$eq": [{"$year": "$fecha_datetime"}, año_mes]},
+                            {"$eq": [{"$month": "$fecha_datetime"}, mes]}
+                        ]
+                    }
+                }
+            },
+            {
+                "$project": {
+                    "fecha": 1,
+                    "dia": {"$dayOfMonth": "$fecha_datetime"},
+                    "temp_maxima": 1,
+                    "temp_minima": 1,
+                    "temp_media": {
+                        "$divide": [
+                            {"$add": ["$temp_maxima", "$temp_minima"]}, 2
+                        ]
+                    }
+                }
+            },
+            {
+                "$sort": {"dia": 1}
+            }
+        ]
+        
+        datos_diarios = list(burgos_collection.aggregate(pipeline_datos_diarios))
+        
+        # Formatear datos para el frontend
+        datos_formateados = []
+        for doc in datos_diarios or []:
+            datos_formateados.append({
+                "dia": doc.get('dia'),
+                "fecha": doc.get('fecha'),
+                "maxima": doc.get('temp_maxima'),
+                "minima": doc.get('temp_minima'),
+                "media": round(doc.get('temp_media', 0), 1) if doc.get('temp_media') else None
+            })
+        
+        return jsonify({
+            "mes": mes,
+            "año": año_mes,
+            "nombre_mes": ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                          "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"][mes],
+            "datos_diarios": datos_formateados
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
