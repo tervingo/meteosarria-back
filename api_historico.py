@@ -819,3 +819,347 @@ def clear_cache():
     except Exception as e:
         logging.error(f"Error limpiando cache: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/dias-calurosos-anual')
+def dias_calurosos_anual():
+    """Días con temperatura máxima > 30°C por año"""
+    try:
+        logging.info("Dashboard días calurosos anual endpoint called")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$año",
+                    "dias_max_gt_30": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.maxima", 30]}, 1, 0]
+                        }
+                    }
+                }
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+        
+        # Obtener datos históricos con caché
+        datos_calurosos = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$group": {
+                    "_id": "$año",
+                    "dias_max_gt_30": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.maxima", 30]}, 1, 0]
+                        }
+                    }
+                }
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos históricos con actuales
+        datos_completos = datos_calurosos + datos_actuales
+        
+        # Formatear para el frontend
+        resultado = []
+        for doc in datos_completos:
+            resultado.append({
+                "año": doc['_id'],
+                "dias_max_gt_30": doc['dias_max_gt_30']
+            })
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logging.error(f"Error en días calurosos anual: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/dias-torridos-anual')
+def dias_torridos_anual():
+    """Días con temperatura máxima > 35°C por año"""
+    try:
+        logging.info("Dashboard días tórridos anual endpoint called")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$año",
+                    "dias_max_gt_35": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.maxima", 35]}, 1, 0]
+                        }
+                    }
+                }
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+        
+        # Obtener datos históricos con caché
+        datos_torridos = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$group": {
+                    "_id": "$año",
+                    "dias_max_gt_35": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.maxima", 35]}, 1, 0]
+                        }
+                    }
+                }
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos históricos con actuales
+        datos_completos = datos_torridos + datos_actuales
+        
+        # Formatear para el frontend
+        resultado = []
+        for doc in datos_completos:
+            resultado.append({
+                "año": doc['_id'],
+                "dias_max_gt_35": doc['dias_max_gt_35']
+            })
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logging.error(f"Error en días tórridos anual: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/rachas-calurosas-anual')
+def rachas_calurosas_anual():
+    """Días consecutivos con temperatura máxima > 30°C por año"""
+    try:
+        logging.info("Dashboard rachas calurosas anual endpoint called")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        # Obtener todos los datos por año y calcular rachas
+        pipeline = [
+            {
+                "$sort": {"año": 1, "mes": 1, "dia": 1}
+            }
+        ]
+        
+        # Obtener datos históricos con caché
+        datos_completos = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$sort": {"año": 1, "mes": 1, "dia": 1}
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos
+        todos_datos = datos_completos + datos_actuales
+        
+        # Calcular rachas por año
+        rachas_por_año = {}
+        
+        for doc in todos_datos:
+            año = doc['año']
+            if año not in rachas_por_año:
+                rachas_por_año[año] = {'datos': [], 'racha_max': 0}
+            
+            rachas_por_año[año]['datos'].append({
+                'fecha': doc['fecha'],
+                'temp_max': doc['temperatura']['maxima']
+            })
+        
+        # Calcular la racha máxima para cada año
+        resultado = []
+        for año, datos_año in rachas_por_año.items():
+            datos_año['datos'].sort(key=lambda x: x['fecha'])
+            
+            racha_actual = 0
+            racha_maxima = 0
+            
+            for dato in datos_año['datos']:
+                if dato['temp_max'] > 30:
+                    racha_actual += 1
+                    racha_maxima = max(racha_maxima, racha_actual)
+                else:
+                    racha_actual = 0
+            
+            resultado.append({
+                "año": año,
+                "racha_max_gt_30": racha_maxima
+            })
+        
+        # Ordenar por año
+        resultado.sort(key=lambda x: x['año'])
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logging.error(f"Error en rachas calurosas anual: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/rachas-torridas-anual')
+def rachas_torridas_anual():
+    """Días consecutivos con temperatura máxima > 35°C por año"""
+    try:
+        logging.info("Dashboard rachas tórridas anual endpoint called")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        # Obtener todos los datos por año y calcular rachas
+        pipeline = [
+            {
+                "$sort": {"año": 1, "mes": 1, "dia": 1}
+            }
+        ]
+        
+        # Obtener datos históricos con caché
+        datos_completos = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$sort": {"año": 1, "mes": 1, "dia": 1}
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos
+        todos_datos = datos_completos + datos_actuales
+        
+        # Calcular rachas por año
+        rachas_por_año = {}
+        
+        for doc in todos_datos:
+            año = doc['año']
+            if año not in rachas_por_año:
+                rachas_por_año[año] = {'datos': [], 'racha_max': 0}
+            
+            rachas_por_año[año]['datos'].append({
+                'fecha': doc['fecha'],
+                'temp_max': doc['temperatura']['maxima']
+            })
+        
+        # Calcular la racha máxima para cada año
+        resultado = []
+        for año, datos_año in rachas_por_año.items():
+            datos_año['datos'].sort(key=lambda x: x['fecha'])
+            
+            racha_actual = 0
+            racha_maxima = 0
+            
+            for dato in datos_año['datos']:
+                if dato['temp_max'] > 35:
+                    racha_actual += 1
+                    racha_maxima = max(racha_maxima, racha_actual)
+                else:
+                    racha_actual = 0
+            
+            resultado.append({
+                "año": año,
+                "racha_max_gt_35": racha_maxima
+            })
+        
+        # Ordenar por año
+        resultado.sort(key=lambda x: x['año'])
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logging.error(f"Error en rachas tórridas anual: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@historico_bp.route('/api/dashboard/noches-tropicales-anual')
+def noches_tropicales_anual():
+    """Noches con temperatura mínima > 20°C por año"""
+    try:
+        logging.info("Dashboard noches tropicales anual endpoint called")
+        
+        intervalos_collection, diario_collection = get_historico_collection()
+        
+        pipeline = [
+            {
+                "$group": {
+                    "_id": "$año",
+                    "noches_min_gt_20": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.minima", 20]}, 1, 0]
+                        }
+                    }
+                }
+            },
+            {
+                "$sort": {"_id": 1}
+            }
+        ]
+        
+        # Obtener datos históricos con caché
+        datos_tropicales = get_historical_data_with_cache(diario_collection, pipeline)
+        
+        # Obtener datos actuales del año actual
+        año_actual = datetime.now().year
+        pipeline_actual = [
+            {
+                "$match": {"año": año_actual}
+            },
+            {
+                "$group": {
+                    "_id": "$año",
+                    "noches_min_gt_20": {
+                        "$sum": {
+                            "$cond": [{"$gt": ["$temperatura.minima", 20]}, 1, 0]
+                        }
+                    }
+                }
+            }
+        ]
+        
+        datos_actuales = list(diario_collection.aggregate(pipeline_actual))
+        
+        # Combinar datos históricos con actuales
+        datos_completos = datos_tropicales + datos_actuales
+        
+        # Formatear para el frontend
+        resultado = []
+        for doc in datos_completos:
+            resultado.append({
+                "año": doc['_id'],
+                "noches_min_gt_20": doc['noches_min_gt_20']
+            })
+        
+        return jsonify(resultado)
+        
+    except Exception as e:
+        logging.error(f"Error en noches tropicales anual: {e}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
