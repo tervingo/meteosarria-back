@@ -20,6 +20,8 @@ VILLAFRIA_LAT = 42.36542
 VILLAFRIA_LON = -3.61669
 BURGOS_CENTER_LAT = 42.34106
 BURGOS_CENTER_LON = -3.70184
+SARRIA_LAT = 41.39525993208715
+SARRIA_LON = 2.12245595765206
 
 # Database collections
 try:
@@ -205,19 +207,25 @@ def get_google_weather_burgos_center_data():
     """Get weather data from Google Weather API for Burgos Center"""
     return get_google_weather_data_for_location(BURGOS_CENTER_LAT, BURGOS_CENTER_LON, "Burgos Centro")
 
+def get_google_weather_sarria_data():
+    """Get weather data from Google Weather API for Sarrià"""
+    return get_google_weather_data_for_location(SARRIA_LAT, SARRIA_LON, "Sarrià")
+
 def collect_weather_data():
     """Collect data from all sources and store in database"""
     try:
         aemet_data = get_aemet_data()
         google_villafria_data = get_google_weather_data()
         google_burgos_center_data = get_google_weather_burgos_center_data()
+        google_sarria_data = get_google_weather_sarria_data()
         
         timestamp = datetime.now()
         weather_record = {
             'timestamp': timestamp,
             'aemet': aemet_data,
             'google_weather_villafria': google_villafria_data,
-            'google_weather_burgos_center': google_burgos_center_data
+            'google_weather_burgos_center': google_burgos_center_data,
+            'google_weather_sarria': google_sarria_data
         }
         
         # Store in database
