@@ -32,8 +32,8 @@ except Exception as e:
 def get_aemet_data():
     """Get weather data from AEMET for Villafría station"""
     try:
-        # AEMET API endpoint for Villafría station (1109 is Burgos/Villafría)
-        url = "https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/1109"
+        # AEMET API endpoint for Villafría station (2331 is Burgos/Villafría)
+        url = "https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/2331"
         api_key = os.getenv('AEMET_API_KEY')
         
         if not api_key:
