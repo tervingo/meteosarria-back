@@ -147,11 +147,18 @@ def get_google_weather_data():
                 temperature = None
                 
                 # Try different possible response structures
-                if 'currentConditions' in data:
+                if 'temperature' in data:
+                    # Direct temperature field (Google Weather API v1 format)
+                    temp_data = data['temperature']
+                    if isinstance(temp_data, dict):
+                        temperature = temp_data.get('degrees') or temp_data.get('value')
+                    else:
+                        temperature = temp_data
+                elif 'currentConditions' in data:
                     current = data['currentConditions']
                     if 'temperature' in current:
                         if isinstance(current['temperature'], dict):
-                            temperature = current['temperature'].get('value')
+                            temperature = current['temperature'].get('degrees') or current['temperature'].get('value')
                         else:
                             temperature = current['temperature']
                 elif 'current' in data:
