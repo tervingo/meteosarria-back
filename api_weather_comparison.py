@@ -32,76 +32,161 @@ except Exception as e:
 def get_aemet_data():
     """Get weather data from AEMET for Villafría station"""
     try:
-        # AEMET API endpoint for Villafría station (example URL - needs actual AEMET API key)
-        # This is a placeholder - you'll need to get actual AEMET API access
+        # AEMET API endpoint for Villafría station (1109 is Burgos/Villafría)
         url = "https://opendata.aemet.es/opendata/api/observacion/convencional/datos/estacion/1109"
-        headers = {'api_key': os.getenv('AEMET_API_KEY', 'your-aemet-api-key')}  # Use env var for API key
+        api_key = os.getenv('AEMET_API_KEY')
         
-        response = requests.get(url, headers=headers, timeout=10)
+        if not api_key:
+            logger.warning("AEMET_API_KEY not configured")
+            return None
+            
+        # AEMET uses query parameters for API key
+        params = {'api_key': api_key}
+        
+        logger.info(f"Making AEMET API request to: {url}")
+        logger.info(f"AEMET API params: {params}")
+        
+        # First request - get the data URL
+        response = requests.get(url, params=params, timeout=10)
+        
+        logger.info(f"AEMET API response status: {response.status_code}")
+        logger.info(f"AEMET API response headers: {dict(response.headers)}")
         
         if response.status_code == 200:
-            data = response.json()
-            # Extract temperature from AEMET response (adjust based on actual API response)
-            temperature = data.get('ta', None)  # 'ta' is typically temperature in AEMET
-            return {
-                'source': 'AEMET',
-                'temperature': temperature,
-                'timestamp': datetime.now(),
-                'raw_data': data
-            }
+            try:
+                metadata = response.json()
+                logger.info(f"AEMET API metadata: {metadata}")
+                
+                # AEMET returns metadata with a 'datos' URL
+                if 'datos' in metadata:
+                    datos_url = metadata['datos']
+                    logger.info(f"AEMET datos URL: {datos_url}")
+                    
+                    # Second request - get actual data
+                    datos_response = requests.get(datos_url, timeout=10)
+                    logger.info(f"AEMET datos response status: {datos_response.status_code}")
+                    
+                    if datos_response.status_code == 200:
+                        try:
+                            data = datos_response.json()
+                            logger.info(f"AEMET datos response: {data}")
+                            
+                            # AEMET returns an array, get the first (most recent) item
+                            if isinstance(data, list) and len(data) > 0:
+                                latest_data = data[0]
+                                # Extract temperature ('ta' field)
+                                temperature = latest_data.get('ta', None)
+                                if temperature is not None:
+                                    temperature = float(temperature)
+                                
+                                logger.info(f"Extracted temperature from AEMET: {temperature}")
+                                
+                                return {
+                                    'source': 'AEMET',
+                                    'temperature': temperature,
+                                    'timestamp': datetime.now(),
+                                    'raw_data': latest_data
+                                }
+                            else:
+                                logger.warning("AEMET returned empty or invalid data array")
+                                return None
+                        except ValueError as json_error:
+                            logger.error(f"AEMET datos JSON parse error: {json_error}")
+                            logger.error(f"AEMET datos raw response: {datos_response.text}")
+                            return None
+                    else:
+                        logger.warning(f"AEMET datos error: {datos_response.status_code} - {datos_response.text}")
+                        return None
+                else:
+                    logger.warning("AEMET metadata does not contain 'datos' URL")
+                    return None
+                    
+            except ValueError as json_error:
+                logger.error(f"AEMET API JSON parse error: {json_error}")
+                logger.error(f"AEMET API raw response: {response.text}")
+                return None
         else:
-            logger.warning(f"AEMET API error: {response.status_code}")
+            logger.warning(f"AEMET API error: {response.status_code} - {response.text}")
             return None
             
     except Exception as e:
         logger.error(f"Error getting AEMET data: {e}")
-        # Return mock data for testing purposes
-        return {
-            'source': 'AEMET',
-            'temperature': 18.5,  # Mock temperature
-            'timestamp': datetime.now(),
-            'raw_data': {'mock': True}
-        }
+        return None
 
 def get_google_weather_data():
     """Get weather data from Google Weather API"""
     try:
         if not GOOGLE_WEATHER_API_KEY:
-            logger.warning("No Google Weather API key provided")
+            logger.warning("GOOGLE_WEATHER_API_KEY not configured")
             return None
             
+        # Google Weather API - try different endpoints based on API type
+        # Option 1: Weather API v1
         url = "https://weather.googleapis.com/v1/currentConditions:lookup"
         params = {
             "key": GOOGLE_WEATHER_API_KEY,
             "location.latitude": VILLAFRIA_LAT,
-            "location.longitude": VILLAFRIA_LON
+            "location.longitude": VILLAFRIA_LON,
+            "languageCode": "es"
         }
+        
+        logger.info(f"Making Google Weather API request to: {url}")
+        logger.info(f"Google Weather API params: {params}")
         
         response = requests.get(url, params=params, timeout=10)
         
+        logger.info(f"Google Weather API response status: {response.status_code}")
+        logger.info(f"Google Weather API response headers: {dict(response.headers)}")
+        
         if response.status_code == 200:
-            data = response.json()
-            # Extract temperature from Google Weather response
-            temperature = data.get('currentConditions', {}).get('temperature', {}).get('value')
-            return {
-                'source': 'Google Weather',
-                'temperature': temperature,
-                'timestamp': datetime.now(),
-                'raw_data': data
-            }
+            try:
+                data = response.json()
+                logger.info(f"Google Weather API response data: {data}")
+                
+                # Extract temperature from Google Weather response (try different structures)
+                temperature = None
+                
+                # Try different possible response structures
+                if 'currentConditions' in data:
+                    current = data['currentConditions']
+                    if 'temperature' in current:
+                        if isinstance(current['temperature'], dict):
+                            temperature = current['temperature'].get('value')
+                        else:
+                            temperature = current['temperature']
+                elif 'current' in data:
+                    current = data['current']
+                    temperature = current.get('temperature', current.get('temp'))
+                elif 'main' in data:
+                    # OpenWeatherMap style response
+                    temperature = data['main'].get('temp')
+                
+                if temperature is not None:
+                    try:
+                        temperature = float(temperature)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert temperature to float: {temperature}")
+                        temperature = None
+                
+                logger.info(f"Extracted temperature from Google Weather: {temperature}")
+                
+                return {
+                    'source': 'Google Weather',
+                    'temperature': temperature,
+                    'timestamp': datetime.now(),
+                    'raw_data': data
+                }
+            except ValueError as json_error:
+                logger.error(f"Google Weather API JSON parse error: {json_error}")
+                logger.error(f"Google Weather API raw response: {response.text}")
+                return None
         else:
             logger.warning(f"Google Weather API error: {response.status_code} - {response.text}")
             return None
             
     except Exception as e:
         logger.error(f"Error getting Google Weather data: {e}")
-        # Return mock data for testing purposes
-        return {
-            'source': 'Google Weather',
-            'temperature': 19.2,  # Mock temperature
-            'timestamp': datetime.now(),
-            'raw_data': {'mock': True}
-        }
+        return None
 
 def collect_weather_data():
     """Collect data from both sources and store in database"""
