@@ -18,6 +18,8 @@ weather_comparison_bp = Blueprint('weather_comparison', __name__)
 GOOGLE_WEATHER_API_KEY = os.getenv('GOOGLE_WEATHER_API_KEY')
 VILLAFRIA_LAT = 42.36542
 VILLAFRIA_LON = -3.61669
+BURGOS_CENTER_LAT = 42.34106
+BURGOS_CENTER_LON = -3.70184
 
 # Database collections
 try:
@@ -113,8 +115,8 @@ def get_aemet_data():
         logger.error(f"Error getting AEMET data: {e}")
         return None
 
-def get_google_weather_data():
-    """Get weather data from Google Weather API"""
+def get_google_weather_data_for_location(lat, lon, location_name):
+    """Get weather data from Google Weather API for specific coordinates"""
     try:
         if not GOOGLE_WEATHER_API_KEY:
             logger.warning("GOOGLE_WEATHER_API_KEY not configured")
@@ -125,23 +127,23 @@ def get_google_weather_data():
         url = "https://weather.googleapis.com/v1/currentConditions:lookup"
         params = {
             "key": GOOGLE_WEATHER_API_KEY,
-            "location.latitude": VILLAFRIA_LAT,
-            "location.longitude": VILLAFRIA_LON,
+            "location.latitude": lat,
+            "location.longitude": lon,
             "languageCode": "es"
         }
         
-        logger.info(f"Making Google Weather API request to: {url}")
+        logger.info(f"Making Google Weather API request for {location_name} to: {url}")
         logger.info(f"Google Weather API params: {params}")
         
         response = requests.get(url, params=params, timeout=10)
         
-        logger.info(f"Google Weather API response status: {response.status_code}")
+        logger.info(f"Google Weather API response status for {location_name}: {response.status_code}")
         logger.info(f"Google Weather API response headers: {dict(response.headers)}")
         
         if response.status_code == 200:
             try:
                 data = response.json()
-                logger.info(f"Google Weather API response data: {data}")
+                logger.info(f"Google Weather API response data for {location_name}: {data}")
                 
                 # Extract temperature from Google Weather response (try different structures)
                 temperature = None
@@ -175,10 +177,10 @@ def get_google_weather_data():
                         logger.warning(f"Could not convert temperature to float: {temperature}")
                         temperature = None
                 
-                logger.info(f"Extracted temperature from Google Weather: {temperature}")
+                logger.info(f"Extracted temperature from Google Weather for {location_name}: {temperature}")
                 
                 return {
-                    'source': 'Google Weather',
+                    'source': f'Google Weather ({location_name})',
                     'temperature': temperature,
                     'timestamp': datetime.now(),
                     'raw_data': data
@@ -188,24 +190,34 @@ def get_google_weather_data():
                 logger.error(f"Google Weather API raw response: {response.text}")
                 return None
         else:
-            logger.warning(f"Google Weather API error: {response.status_code} - {response.text}")
+            logger.warning(f"Google Weather API error for {location_name}: {response.status_code} - {response.text}")
             return None
             
     except Exception as e:
-        logger.error(f"Error getting Google Weather data: {e}")
+        logger.error(f"Error getting Google Weather data for {location_name}: {e}")
         return None
 
+def get_google_weather_data():
+    """Get weather data from Google Weather API for Villafría"""
+    return get_google_weather_data_for_location(VILLAFRIA_LAT, VILLAFRIA_LON, "Villafría")
+
+def get_google_weather_burgos_center_data():
+    """Get weather data from Google Weather API for Burgos Center"""
+    return get_google_weather_data_for_location(BURGOS_CENTER_LAT, BURGOS_CENTER_LON, "Burgos Centro")
+
 def collect_weather_data():
-    """Collect data from both sources and store in database"""
+    """Collect data from all sources and store in database"""
     try:
         aemet_data = get_aemet_data()
-        google_data = get_google_weather_data()
+        google_villafria_data = get_google_weather_data()
+        google_burgos_center_data = get_google_weather_burgos_center_data()
         
         timestamp = datetime.now()
         weather_record = {
             'timestamp': timestamp,
             'aemet': aemet_data,
-            'google_weather': google_data
+            'google_weather_villafria': google_villafria_data,
+            'google_weather_burgos_center': google_burgos_center_data
         }
         
         # Store in database
