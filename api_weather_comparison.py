@@ -71,9 +71,9 @@ def get_aemet_data():
                             data = datos_response.json()
                             logger.info(f"AEMET datos response: {data}")
                             
-                            # AEMET returns an array, get the first (most recent) item
+                            # AEMET returns an array, get the last (most recent) item
                             if isinstance(data, list) and len(data) > 0:
-                                latest_data = data[0]
+                                latest_data = data[-1]
                                 # Extract temperature ('ta' field)
                                 temperature = latest_data.get('ta', None)
                                 if temperature is not None:
