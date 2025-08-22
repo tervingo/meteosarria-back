@@ -268,14 +268,75 @@ def get_burgos_weather():
             observation_time = datetime.fromisoformat(observation_time.replace('Z', '+00:00'))
         fecha_obs = observation_time.strftime("%Y-%m-%d %H:%M:%S")
 
-        # Extraer campos de Google Weather API (usando los nuevos campos extraídos)
-        temperature = gw_data.get('temperature', 0)
-        humidity = gw_data.get('humidity', 0)
-        pressure = gw_data.get('pressure', 0)
-        wind_speed = gw_data.get('wind_speed', 0)
-        wind_direction = gw_data.get('wind_direction', 0)
-        weather_description = gw_data.get('weather_description', 'Google Weather')
-        clouds = gw_data.get('clouds', 0)
+        # Extraer campos directamente del raw_data (estructura real de Google Weather)
+        temperature = 0
+        humidity = 0
+        pressure = 0
+        wind_speed = 0
+        wind_direction = 0
+        weather_description = "Google Weather"
+        clouds = 0
+        
+        # Temperatura
+        if 'temperature' in raw_data and isinstance(raw_data['temperature'], dict):
+            temperature = raw_data['temperature'].get('degrees', 0)
+            
+        # Humedad relativa
+        if 'relativeHumidity' in raw_data:
+            humidity = raw_data['relativeHumidity']
+            
+        # Presión atmosférica
+        if 'airPressure' in raw_data and isinstance(raw_data['airPressure'], dict):
+            pressure = raw_data['airPressure'].get('meanSeaLevelMillibars', 0)
+            
+        # Viento
+        if 'wind' in raw_data and isinstance(raw_data['wind'], dict):
+            if 'speed' in raw_data['wind'] and isinstance(raw_data['wind']['speed'], dict):
+                wind_speed = raw_data['wind']['speed'].get('value', 0)
+            if 'direction' in raw_data['wind'] and isinstance(raw_data['wind']['direction'], dict):
+                wind_direction = raw_data['wind']['direction'].get('degrees', 0)
+                
+        # Descripción del tiempo
+        if 'weatherCondition' in raw_data and isinstance(raw_data['weatherCondition'], dict):
+            if 'description' in raw_data['weatherCondition'] and isinstance(raw_data['weatherCondition']['description'], dict):
+                weather_description = raw_data['weatherCondition']['description'].get('text', 'Google Weather')
+                
+        # Cobertura de nubes
+        if 'cloudCover' in raw_data:
+            clouds = raw_data['cloudCover']
+            
+        # Precipitación diaria del histórico
+        day_rain = 0
+        if 'currentConditionsHistory' in raw_data and isinstance(raw_data['currentConditionsHistory'], dict):
+            if 'qpf' in raw_data['currentConditionsHistory'] and isinstance(raw_data['currentConditionsHistory']['qpf'], dict):
+                day_rain = raw_data['currentConditionsHistory']['qpf'].get('quantity', 0)
+
+        # Calcular máximas y mínimas del histórico diario si está disponible
+        max_temperature = temperature
+        min_temperature = temperature
+        
+        if 'currentConditionsHistory' in raw_data:
+            history = raw_data['currentConditionsHistory']
+            if isinstance(history, dict):
+                # Extraer temperatura máxima
+                if 'maxTemperature' in history:
+                    max_temp_obj = history['maxTemperature']
+                    if isinstance(max_temp_obj, dict) and 'degrees' in max_temp_obj:
+                        try:
+                            max_temperature = float(max_temp_obj['degrees'])
+                        except (ValueError, TypeError):
+                            pass
+                
+                # Extraer temperatura mínima  
+                if 'minTemperature' in history:
+                    min_temp_obj = history['minTemperature']
+                    if isinstance(min_temp_obj, dict) and 'degrees' in min_temp_obj:
+                        try:
+                            min_temperature = float(min_temp_obj['degrees'])
+                        except (ValueError, TypeError):
+                            pass
+                
+                logger.info(f"Temperaturas del histórico diario extraídas: Max: {max_temperature}°C, Min: {min_temperature}°C")
 
         # Calcular dirección del viento en texto
         wind_direction_text = ""
@@ -287,25 +348,23 @@ def get_burgos_weather():
             index = round(float(wind_direction) / 22.5) % 16
             wind_direction_text = direcciones[index]
 
-        # Convertir velocidad del viento a km/h (asumiendo que viene en m/s)
-        wind_speed_kmh = 0
-        if isinstance(wind_speed, (int, float)):
-            wind_speed_kmh = round(float(wind_speed) * 3.6, 1)
+        # Google Weather ya devuelve velocidad del viento en km/h según el JSON
+        wind_speed_kmh = round(float(wind_speed), 1) if wind_speed else 0
 
         # Estructurar los datos de respuesta manteniendo la misma estructura que AEMET
         weather_data = {
             "temperature": temperature,
             "humidity": humidity,
             "pressure": pressure,
-            "wind_speed": wind_speed,
+            "wind_speed": round(wind_speed / 3.6, 1) if wind_speed else 0,  # Convertir de km/h a m/s para compatibilidad
             "wind_speed_kmh": wind_speed_kmh,
             "wind_direction": wind_direction,
             "wind_direction_text": wind_direction_text,
             "weather_overview": weather_description,
-            "day_rain": 0,  # Google Weather no proporciona lluvia diaria específica
+            "day_rain": day_rain,
             "total_rain": round(total_rain, 1),
-            "max_temperature": temperature,  # Google Weather actual no tiene histórico diario
-            "min_temperature": temperature,  # Google Weather actual no tiene histórico diario
+            "max_temperature": max_temperature,
+            "min_temperature": min_temperature,
             "clouds": clouds,
             "icon": "01d",  # Icono por defecto
             "description": weather_description,

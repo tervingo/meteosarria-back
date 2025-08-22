@@ -147,7 +147,7 @@ def get_google_weather_data_for_location(lat, lon, location_name):
                 data = response.json()
                 logger.info(f"Google Weather API response data for {location_name}: {data}")
                 
-                # Extract all available data from Google Weather response
+                # Extract data based on actual Google Weather API v1 response structure
                 temperature = None
                 humidity = None
                 pressure = None
@@ -156,102 +156,46 @@ def get_google_weather_data_for_location(lat, lon, location_name):
                 weather_description = None
                 clouds = None
                 
-                # Try different possible response structures
-                if 'temperature' in data:
-                    # Direct temperature field (Google Weather API v1 format)
-                    temp_data = data['temperature']
-                    if isinstance(temp_data, dict):
-                        temperature = temp_data.get('degrees') or temp_data.get('value')
-                    else:
-                        temperature = temp_data
-                elif 'currentConditions' in data:
-                    current = data['currentConditions']
-                    if 'temperature' in current:
-                        if isinstance(current['temperature'], dict):
-                            temperature = current['temperature'].get('degrees') or current['temperature'].get('value')
-                        else:
-                            temperature = current['temperature']
-                    
-                    # Extract additional fields
-                    humidity = current.get('humidity')
-                    pressure = current.get('pressure')
-                    clouds = current.get('cloudiness')
-                    
-                    if 'wind' in current:
-                        wind_data = current['wind']
-                        wind_speed = wind_data.get('speed')
-                        wind_direction = wind_data.get('direction')
-                    
-                    if 'weatherConditions' in current:
-                        weather_description = current['weatherConditions'].get('description')
-                        
-                elif 'current' in data:
-                    current = data['current']
-                    temperature = current.get('temperature', current.get('temp'))
-                    humidity = current.get('humidity')
-                    pressure = current.get('pressure')
-                    wind_speed = current.get('wind_speed')
-                    wind_direction = current.get('wind_direction')
-                    weather_description = current.get('description')
-                    clouds = current.get('clouds')
-                elif 'main' in data:
-                    # OpenWeatherMap style response
-                    temperature = data['main'].get('temp')
-                    humidity = data['main'].get('humidity')
-                    pressure = data['main'].get('pressure')
-                    if 'wind' in data:
-                        wind_speed = data['wind'].get('speed')
-                        wind_direction = data['wind'].get('deg')
-                    if 'weather' in data and len(data['weather']) > 0:
-                        weather_description = data['weather'][0].get('description')
-                    if 'clouds' in data:
-                        clouds = data['clouds'].get('all')
+                # Google Weather API v1 actual structure
+                if 'temperature' in data and isinstance(data['temperature'], dict):
+                    temperature = data['temperature'].get('degrees')
                 
-                # Convert temperature to float
-                if temperature is not None:
-                    try:
-                        temperature = float(temperature)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert temperature to float: {temperature}")
-                        temperature = None
+                if 'relativeHumidity' in data:
+                    humidity = data['relativeHumidity']
+                    
+                if 'airPressure' in data and isinstance(data['airPressure'], dict):
+                    pressure = data['airPressure'].get('meanSeaLevelMillibars')
+                    
+                if 'wind' in data and isinstance(data['wind'], dict):
+                    if 'speed' in data['wind'] and isinstance(data['wind']['speed'], dict):
+                        wind_speed = data['wind']['speed'].get('value')
+                    if 'direction' in data['wind'] and isinstance(data['wind']['direction'], dict):
+                        wind_direction = data['wind']['direction'].get('degrees')
+                        
+                if 'weatherCondition' in data and isinstance(data['weatherCondition'], dict):
+                    if 'description' in data['weatherCondition'] and isinstance(data['weatherCondition']['description'], dict):
+                        weather_description = data['weatherCondition']['description'].get('text')
+                        
+                if 'cloudCover' in data:
+                    clouds = data['cloudCover']
                 
-                # Convert other numeric fields
-                if humidity is not None:
-                    try:
-                        humidity = float(humidity)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert humidity to float: {humidity}")
-                        humidity = None
-                        
-                if pressure is not None:
-                    try:
-                        pressure = float(pressure)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert pressure to float: {pressure}")
-                        pressure = None
-                        
-                if wind_speed is not None:
-                    try:
-                        wind_speed = float(wind_speed)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert wind_speed to float: {wind_speed}")
-                        wind_speed = None
-                        
-                if wind_direction is not None:
-                    try:
-                        wind_direction = float(wind_direction)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert wind_direction to float: {wind_direction}")
-                        wind_direction = None
-                        
-                if clouds is not None:
-                    try:
-                        clouds = float(clouds)
-                    except (ValueError, TypeError):
-                        logger.warning(f"Could not convert clouds to float: {clouds}")
-                        clouds = None
+                # Convert numeric fields to float
+                for field_name, field_value in [
+                    ('temperature', temperature), 
+                    ('humidity', humidity), 
+                    ('pressure', pressure),
+                    ('wind_speed', wind_speed), 
+                    ('wind_direction', wind_direction), 
+                    ('clouds', clouds)
+                ]:
+                    if field_value is not None:
+                        try:
+                            locals()[field_name] = float(field_value)
+                        except (ValueError, TypeError):
+                            logger.warning(f"Could not convert {field_name} to float: {field_value}")
+                            locals()[field_name] = None
                 
-                logger.info(f"Extracted data from Google Weather for {location_name}: temp={temperature}, humidity={humidity}, pressure={pressure}, wind_speed={wind_speed}")
+                logger.info(f"Extracted data from Google Weather for {location_name}: temp={temperature}, humidity={humidity}, pressure={pressure}, wind_speed={wind_speed}, clouds={clouds}")
                 
                 return {
                     'source': f'Google Weather ({location_name})',
