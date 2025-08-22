@@ -26,10 +26,10 @@ SARRIA_LON = 2.12245595765206
 # Database collections
 try:
     db = get_db()
-    weather_collection = db.weather_data
-    logger.info("Connected to weather_data collection")
+    weather_collection = db.gw_burgos_data
+    logger.info("Connected to gw_burgos_data collection")
 except Exception as e:
-    logger.error(f"Error connecting to weather_data collection: {e}")
+    logger.error(f"Error connecting to gw_burgos_data collection: {e}")
     raise
 
 # Weather data functions
@@ -147,8 +147,14 @@ def get_google_weather_data_for_location(lat, lon, location_name):
                 data = response.json()
                 logger.info(f"Google Weather API response data for {location_name}: {data}")
                 
-                # Extract temperature from Google Weather response (try different structures)
+                # Extract all available data from Google Weather response
                 temperature = None
+                humidity = None
+                pressure = None
+                wind_speed = None
+                wind_direction = None
+                weather_description = None
+                clouds = None
                 
                 # Try different possible response structures
                 if 'temperature' in data:
@@ -165,13 +171,43 @@ def get_google_weather_data_for_location(lat, lon, location_name):
                             temperature = current['temperature'].get('degrees') or current['temperature'].get('value')
                         else:
                             temperature = current['temperature']
+                    
+                    # Extract additional fields
+                    humidity = current.get('humidity')
+                    pressure = current.get('pressure')
+                    clouds = current.get('cloudiness')
+                    
+                    if 'wind' in current:
+                        wind_data = current['wind']
+                        wind_speed = wind_data.get('speed')
+                        wind_direction = wind_data.get('direction')
+                    
+                    if 'weatherConditions' in current:
+                        weather_description = current['weatherConditions'].get('description')
+                        
                 elif 'current' in data:
                     current = data['current']
                     temperature = current.get('temperature', current.get('temp'))
+                    humidity = current.get('humidity')
+                    pressure = current.get('pressure')
+                    wind_speed = current.get('wind_speed')
+                    wind_direction = current.get('wind_direction')
+                    weather_description = current.get('description')
+                    clouds = current.get('clouds')
                 elif 'main' in data:
                     # OpenWeatherMap style response
                     temperature = data['main'].get('temp')
+                    humidity = data['main'].get('humidity')
+                    pressure = data['main'].get('pressure')
+                    if 'wind' in data:
+                        wind_speed = data['wind'].get('speed')
+                        wind_direction = data['wind'].get('deg')
+                    if 'weather' in data and len(data['weather']) > 0:
+                        weather_description = data['weather'][0].get('description')
+                    if 'clouds' in data:
+                        clouds = data['clouds'].get('all')
                 
+                # Convert temperature to float
                 if temperature is not None:
                     try:
                         temperature = float(temperature)
@@ -179,11 +215,53 @@ def get_google_weather_data_for_location(lat, lon, location_name):
                         logger.warning(f"Could not convert temperature to float: {temperature}")
                         temperature = None
                 
-                logger.info(f"Extracted temperature from Google Weather for {location_name}: {temperature}")
+                # Convert other numeric fields
+                if humidity is not None:
+                    try:
+                        humidity = float(humidity)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert humidity to float: {humidity}")
+                        humidity = None
+                        
+                if pressure is not None:
+                    try:
+                        pressure = float(pressure)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert pressure to float: {pressure}")
+                        pressure = None
+                        
+                if wind_speed is not None:
+                    try:
+                        wind_speed = float(wind_speed)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert wind_speed to float: {wind_speed}")
+                        wind_speed = None
+                        
+                if wind_direction is not None:
+                    try:
+                        wind_direction = float(wind_direction)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert wind_direction to float: {wind_direction}")
+                        wind_direction = None
+                        
+                if clouds is not None:
+                    try:
+                        clouds = float(clouds)
+                    except (ValueError, TypeError):
+                        logger.warning(f"Could not convert clouds to float: {clouds}")
+                        clouds = None
+                
+                logger.info(f"Extracted data from Google Weather for {location_name}: temp={temperature}, humidity={humidity}, pressure={pressure}, wind_speed={wind_speed}")
                 
                 return {
                     'source': f'Google Weather ({location_name})',
                     'temperature': temperature,
+                    'humidity': humidity,
+                    'pressure': pressure,
+                    'wind_speed': wind_speed,
+                    'wind_direction': wind_direction,
+                    'weather_description': weather_description,
+                    'clouds': clouds,
                     'timestamp': datetime.now(),
                     'raw_data': data
                 }
@@ -212,26 +290,25 @@ def get_google_weather_sarria_data():
     return get_google_weather_data_for_location(SARRIA_LAT, SARRIA_LON, "Sarrià")
 
 def collect_weather_data():
-    """Collect data from all sources and store in database"""
+    """Collect Google Weather data for Burgos Centro and store in database"""
     try:
-        aemet_data = get_aemet_data()
-        google_villafria_data = get_google_weather_data()
         google_burgos_center_data = get_google_weather_burgos_center_data()
-        google_sarria_data = get_google_weather_sarria_data()
+        
+        if not google_burgos_center_data:
+            logger.warning("No se pudieron obtener datos de Google Weather para Burgos Centro")
+            return None
         
         timestamp = datetime.now()
         weather_record = {
             'timestamp': timestamp,
-            'aemet': aemet_data,
-            'google_weather_villafria': google_villafria_data,
             'google_weather_burgos_center': google_burgos_center_data,
-            'google_weather_sarria': google_sarria_data
+            'raw_data': google_burgos_center_data.get('raw_data', {})
         }
         
         # Store in database
         result = weather_collection.insert_one(weather_record)
         weather_record['_id'] = result.inserted_id
-        logger.info(f"Weather data collected at {timestamp}")
+        logger.info(f"Burgos Centro weather data collected at {timestamp}")
         
         return weather_record
         

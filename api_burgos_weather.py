@@ -240,54 +240,46 @@ class AEMETWeatherAPI:
 @burgos_bp.route('/api/burgos-weather', methods=['GET'])
 def get_burgos_weather():
     try:
-        # Obtener la API key de AEMET
-        api_key = os.getenv('AEMET_API_KEY')
-        if not api_key:
-            logger.error("AEMET_API_KEY no está configurada")
-            return jsonify({"error": "API key no configurada"}), 500
+        # Conectar a la nueva colección de Google Weather
+        from database import get_db
+        db = get_db()
+        gw_collection = db.gw_burgos_data
+        
+        # Obtener el último registro de Google Weather para Burgos Centro
+        latest_record = gw_collection.find_one(sort=[('timestamp', -1)])
+        
+        if not latest_record:
+            logger.error("No se encontraron datos de Google Weather para Burgos Centro")
+            return jsonify({"error": "No hay datos meteorológicos disponibles"}), 500
 
-        # Crear instancia de la API de AEMET
-        aemet_api = AEMETWeatherAPI(api_key)
+        # Extraer datos de Google Weather
+        gw_data = latest_record.get('google_weather_burgos_center', {})
+        raw_data = gw_data.get('raw_data', {})
         
-        # Obtener datos de la estación de Burgos Villafría con máximas/minimas diarias
-        datos_estacion = aemet_api.obtener_datos_completos_villafria()
-        logger.info(f"Datos de la estación: {datos_estacion}")
-        
-        if not datos_estacion:
-            logger.error("No se pudieron obtener los datos de la estación")
-            return jsonify({"error": "No se pudieron obtener los datos meteorológicos"}), 500
+        logger.info(f"Datos de Google Weather: {raw_data}")
 
         # Obtener el último registro de lluvia acumulada
         last_rain_record = rain_collection.find_one(sort=[("date", -1)])
         total_rain = last_rain_record['accumulated'] if last_rain_record else 0
 
-        # Usar la fecha de observación 'fint' de AEMET y convertirla a hora local
-        fecha_obs = datos_estacion.get('fint', '')
-        logger.info(f"Fecha de observación (UTC): {fecha_obs}")
-        if fecha_obs:
-            try:
-                if 'T' in fecha_obs:
-                    # Parsear fecha UTC
-                    fecha_obs = fecha_obs.replace('Z', '')
-                    fecha_utc = datetime.fromisoformat(fecha_obs)
-                    # Convertir a hora local española usando pytz
-                    fecha_utc = fecha_utc.replace(tzinfo=pytz.UTC)
-                    fecha_local = fecha_utc.astimezone(pytz.timezone('Europe/Madrid'))
-                    # Mantener solo la hora (minutos a 00) como hacen las observaciones de AEMET
-                    fecha_local = fecha_local.replace(minute=0, second=0, microsecond=0)
-                    fecha_obs = fecha_local.strftime("%Y-%m-%d %H:%M:%S")
-                    logger.info(f"Fecha de observación (local): {fecha_local}")
-                    logger.info(f"Fecha de observación: {fecha_local.strftime('%Y-%m-%d %H:%M:%S')}")
-            except Exception as e:
-                logger.warning(f"Error convirtiendo fecha de observación: {e}")
-                fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            fecha_obs = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Fecha de observación
+        observation_time = latest_record.get('timestamp', datetime.now())
+        if isinstance(observation_time, str):
+            observation_time = datetime.fromisoformat(observation_time.replace('Z', '+00:00'))
+        fecha_obs = observation_time.strftime("%Y-%m-%d %H:%M:%S")
+
+        # Extraer campos de Google Weather API (usando los nuevos campos extraídos)
+        temperature = gw_data.get('temperature', 0)
+        humidity = gw_data.get('humidity', 0)
+        pressure = gw_data.get('pressure', 0)
+        wind_speed = gw_data.get('wind_speed', 0)
+        wind_direction = gw_data.get('wind_direction', 0)
+        weather_description = gw_data.get('weather_description', 'Google Weather')
+        clouds = gw_data.get('clouds', 0)
 
         # Calcular dirección del viento en texto
         wind_direction_text = ""
-        wind_direction = datos_estacion.get("dv", 0)
-        if isinstance(wind_direction, (int, float)):
+        if isinstance(wind_direction, (int, float)) and wind_direction > 0:
             direcciones = [
                 "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                 "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
@@ -295,41 +287,40 @@ def get_burgos_weather():
             index = round(float(wind_direction) / 22.5) % 16
             wind_direction_text = direcciones[index]
 
-        # Convertir velocidad del viento a km/h
+        # Convertir velocidad del viento a km/h (asumiendo que viene en m/s)
         wind_speed_kmh = 0
-        wind_speed = datos_estacion.get("vv", 0)
         if isinstance(wind_speed, (int, float)):
             wind_speed_kmh = round(float(wind_speed) * 3.6, 1)
 
-        # Estructurar los datos de respuesta
+        # Estructurar los datos de respuesta manteniendo la misma estructura que AEMET
         weather_data = {
-            "temperature": datos_estacion.get("ta", 0),  # Temperatura actual
-            "humidity": datos_estacion.get("hr", 0),     # Humedad relativa
-            "pressure": datos_estacion.get("pres", 0),   # Presión
-            "wind_speed": datos_estacion.get("vv", 0),   # Velocidad del viento (m/s)
-            "wind_speed_kmh": wind_speed_kmh,            # Velocidad del viento (km/h)
-            "wind_direction": datos_estacion.get("dv", 0), # Dirección del viento (grados)
-            "wind_direction_text": wind_direction_text,   # Dirección del viento (texto)
-            "weather_overview": "Datos de AEMET",  # Descripción genérica
-            "day_rain": datos_estacion.get("prec", 0),   # Precipitación
-            "total_rain": round(total_rain, 1),           # Lluvia acumulada de MongoDB
-            "max_temperature": datos_estacion.get("tamax_diaria", datos_estacion.get("tamax", datos_estacion.get("ta", 0))), # Temp máxima diaria calculada
-            "min_temperature": datos_estacion.get("tamin_diaria", datos_estacion.get("tamin", datos_estacion.get("ta", 0))), # Temp mínima diaria calculada
-            "clouds": 0,  # AEMET no proporciona datos de nubes
+            "temperature": temperature,
+            "humidity": humidity,
+            "pressure": pressure,
+            "wind_speed": wind_speed,
+            "wind_speed_kmh": wind_speed_kmh,
+            "wind_direction": wind_direction,
+            "wind_direction_text": wind_direction_text,
+            "weather_overview": weather_description,
+            "day_rain": 0,  # Google Weather no proporciona lluvia diaria específica
+            "total_rain": round(total_rain, 1),
+            "max_temperature": temperature,  # Google Weather actual no tiene histórico diario
+            "min_temperature": temperature,  # Google Weather actual no tiene histórico diario
+            "clouds": clouds,
             "icon": "01d",  # Icono por defecto
-            "description": "Datos de estación AEMET",
+            "description": weather_description,
             "timestamp": datetime.now(pytz.UTC).isoformat(),
             "observation_time": fecha_obs,
-            "station_id": datos_estacion.get("idema", ""),
-            "station_name": datos_estacion.get("ubi", "Burgos Villafría"),
-            # Campos adicionales de AEMET
-            "visibility": datos_estacion.get("vis", 0),   # Visibilidad (km)
-            "insolation": datos_estacion.get("inso", 0),  # Insolación (W/m²)
-            "dew_point": datos_estacion.get("tpr", 0),    # Punto de rocío (°C)
-            "soil_temperature": datos_estacion.get("ts", 0), # Temperatura suelo (°C)
-            "soil_temp_5cm": datos_estacion.get("tss5cm", 0), # Temp suelo 5cm (°C)
-            "soil_temp_20cm": datos_estacion.get("tss20cm", 0), # Temp suelo 20cm (°C)
-            "wind_gust": datos_estacion.get("vmax", 0)    # Racha máxima (m/s)
+            "station_id": "google_weather",
+            "station_name": "Burgos Centro (Google Weather)",
+            # Campos adicionales (no disponibles en Google Weather)
+            "visibility": 0,
+            "insolation": 0,
+            "dew_point": 0,
+            "soil_temperature": 0,
+            "soil_temp_5cm": 0,
+            "soil_temp_20cm": 0,
+            "wind_gust": 0
         }
 
         return jsonify(weather_data)
