@@ -316,22 +316,99 @@ def manual_collect_weather():
         logger.error(f"Error in manual weather collection: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@weather_comparison_bp.route('/api/weather/scheduler/status', methods=['GET'])
+def get_scheduler_status_endpoint():
+    """Get current scheduler status"""
+    try:
+        status = get_scheduler_status()
+        return jsonify({
+            'success': True,
+            'status': status
+        })
+    except Exception as e:
+        logger.error(f"Error getting scheduler status: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@weather_comparison_bp.route('/api/weather/scheduler/start', methods=['POST'])
+def start_scheduler_endpoint():
+    """Start the weather data scheduler"""
+    try:
+        result = start_weather_scheduler()
+        if result:
+            return jsonify({
+                'success': True,
+                'message': 'Weather data scheduler started',
+                'status': get_scheduler_status()
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Scheduler is already running',
+                'status': get_scheduler_status()
+            })
+    except Exception as e:
+        logger.error(f"Error starting scheduler: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@weather_comparison_bp.route('/api/weather/scheduler/stop', methods=['POST'])
+def stop_scheduler_endpoint():
+    """Stop the weather data scheduler"""
+    try:
+        result = stop_weather_scheduler()
+        return jsonify({
+            'success': True,
+            'message': 'Weather data scheduler stop requested',
+            'status': get_scheduler_status()
+        })
+    except Exception as e:
+        logger.error(f"Error stopping scheduler: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Scheduler control variables
+scheduler_running = True
+scheduler_thread = None
+
 # Background task for automatic weather data collection
 def weather_data_scheduler():
     """Background scheduler to collect weather data every 10 minutes"""
-    while True:
+    global scheduler_running
+    while scheduler_running:
         try:
-            collect_weather_data()
+            if scheduler_running:  # Double check before collecting
+                collect_weather_data()
             time.sleep(600)  # 10 minutes = 600 seconds
         except Exception as e:
             logger.error(f"Error in weather scheduler: {e}")
             time.sleep(600)  # Continue trying every 10 minutes
+    logger.info("Weather data scheduler stopped")
 
 # Start background scheduler
 def start_weather_scheduler():
-    scheduler_thread = threading.Thread(target=weather_data_scheduler, daemon=True)
-    scheduler_thread.start()
-    logger.info("✅ Weather data scheduler started (collects every 10 minutes)")
+    global scheduler_running, scheduler_thread
+    if scheduler_thread is None or not scheduler_thread.is_alive():
+        scheduler_running = True
+        scheduler_thread = threading.Thread(target=weather_data_scheduler, daemon=True)
+        scheduler_thread.start()
+        logger.info("✅ Weather data scheduler started (collects every 10 minutes)")
+        return True
+    return False
+
+# Stop background scheduler
+def stop_weather_scheduler():
+    global scheduler_running
+    scheduler_running = False
+    logger.info("🛑 Weather data scheduler stop requested")
+    return True
+
+# Get scheduler status
+def get_scheduler_status():
+    global scheduler_running, scheduler_thread
+    is_alive = scheduler_thread is not None and scheduler_thread.is_alive()
+    return {
+        'running': scheduler_running,
+        'thread_alive': is_alive,
+        'status': 'running' if scheduler_running and is_alive else 'stopped'
+    }
 
 # Initialize scheduler when blueprint is imported
 start_weather_scheduler()
