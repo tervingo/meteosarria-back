@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 import logging
 import os
 import requests
@@ -293,9 +293,13 @@ def get_current_weather():
 
 @weather_comparison_bp.route('/api/weather/history', methods=['GET'])
 def get_weather_history():
-    """Get weather history (last 30 records)"""
+    """Get weather history with configurable limit"""
     try:
-        records = list(weather_collection.find().sort('timestamp', -1).limit(30))
+        # Get limit from query parameters, default to 30, max 2000 for safety
+        limit = int(request.args.get('limit', 30))
+        limit = min(max(limit, 1), 2000)  # Ensure limit is between 1 and 2000
+        
+        records = list(weather_collection.find().sort('timestamp', -1).limit(limit))
         
         # Convert ObjectId to string and datetime to ISO format
         for record in records:
@@ -305,7 +309,8 @@ def get_weather_history():
         return jsonify({
             'success': True,
             'data': records,
-            'count': len(records)
+            'count': len(records),
+            'limit': limit
         })
         
     except Exception as e:
