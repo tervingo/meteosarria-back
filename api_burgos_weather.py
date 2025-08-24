@@ -387,3 +387,105 @@ def get_burgos_weather():
     except Exception as e:
         logger.error(f"Error inesperado: {str(e)}")
         return jsonify({"error": "Error interno del servidor"}), 500
+
+@burgos_bp.route('/api/burgos-daily-extremes', methods=['GET'])
+def get_burgos_daily_extremes():
+    """Calculate daily temperature extremes for Burgos from historical data"""
+    try:
+        from database import get_db
+        db = get_db()
+        gw_collection = db.gw_burgos_data
+        
+        # Get today's date at 00:00 in Madrid timezone
+        from datetime import datetime, timezone
+        import pytz
+        
+        madrid_tz = pytz.timezone('Europe/Madrid')
+        now_madrid = datetime.now(madrid_tz)
+        start_of_day_madrid = now_madrid.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        logger.info(f"Calculating daily extremes from {start_of_day_madrid.isoformat()}")
+        
+        # Get enough historical data (200 records should cover more than 24h)
+        historical_data = list(gw_collection.find().sort('timestamp', -1).limit(200))
+        
+        if not historical_data:
+            logger.error("No historical data available for daily extremes calculation")
+            return jsonify({"error": "No historical data available"}), 500
+        
+        # Filter today's data
+        today_records = []
+        for record in historical_data:
+            # Parse timestamp from database
+            if isinstance(record['timestamp'], str):
+                record_time = datetime.fromisoformat(record['timestamp'].replace('Z', '+00:00'))
+            else:
+                record_time = record['timestamp']
+                if record_time.tzinfo is None:
+                    record_time = record_time.replace(tzinfo=timezone.utc)
+            
+            # Convert to Madrid timezone
+            record_madrid = record_time.astimezone(madrid_tz)
+            
+            # Check if record is from today
+            if (record_madrid.date() == start_of_day_madrid.date()):
+                today_records.append({
+                    'timestamp': record['timestamp'],
+                    'madrid_time': record_madrid,
+                    'data': record
+                })
+        
+        logger.info(f"Found {len(today_records)} records for today")
+        
+        if not today_records:
+            return jsonify({"error": "No data available for today"}), 500
+        
+        # Calculate extremes
+        max_temp = float('-inf')
+        min_temp = float('inf')
+        max_temp_time = None
+        min_temp_time = None
+        
+        for record in today_records:
+            # Extract temperature from the record
+            temp = None
+            data = record['data']
+            
+            if data.get('google_weather_burgos_center', {}).get('temperature') is not None:
+                temp = float(data['google_weather_burgos_center']['temperature'])
+            elif data.get('raw_data', {}).get('temperature', {}).get('degrees') is not None:
+                temp = float(data['raw_data']['temperature']['degrees'])
+            
+            if temp is not None and not (temp < -20 or temp > 45):  # Validate temperature
+                if temp > max_temp:
+                    max_temp = temp
+                    max_temp_time = record['madrid_time']
+                
+                if temp < min_temp:
+                    min_temp = temp
+                    min_temp_time = record['madrid_time']
+        
+        # Prepare response
+        if max_temp == float('-inf') or min_temp == float('inf'):
+            return jsonify({"error": "No valid temperature data found for today"}), 500
+        
+        result = {
+            "success": True,
+            "date": start_of_day_madrid.strftime("%Y-%m-%d"),
+            "extremes": {
+                "max_temperature": round(max_temp, 1),
+                "max_temperature_time": max_temp_time.strftime("%H:%M") if max_temp_time else None,
+                "min_temperature": round(min_temp, 1), 
+                "min_temperature_time": min_temp_time.strftime("%H:%M") if min_temp_time else None
+            },
+            "records_analyzed": len(today_records),
+            "timezone": "Europe/Madrid"
+        }
+        
+        logger.info(f"Daily extremes calculated: Max {max_temp}°C at {max_temp_time}, Min {min_temp}°C at {min_temp_time}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error calculating daily extremes: {str(e)}")
+        return jsonify({"error": "Error calculating daily extremes"}), 500
