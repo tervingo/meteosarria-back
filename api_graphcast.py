@@ -1,13 +1,12 @@
 """
 api_graphcast.py
 
-Pipeline: ECMWF Open Data (GraphCast GRIB2) → GeoTIFF → rio-tiler → XYZ tiles.
+Pipeline: ECMWF Open Data (AIFS GRIB2) → GeoTIFF → rio-tiler → XYZ tiles.
+
+Modelo: aifs-single (ECMWF AI Integrated Forecasting System, sustituto de GraphCast).
+GraphCast fue retirado de ECMWF Open Data; AIFS ofrece la misma funcionalidad.
 
 Sin GEE. Sin GCS. Sin coste externo.
-
-Pre-requisitos (sistema):
-  - cfgrib requiere eccodes: en Render añadir al buildCommand:
-      apt-get install -y libeccodes-dev && pip install -r requirements.txt
 
 Variables de entorno necesarias: ninguna (pipeline local).
 
@@ -131,7 +130,7 @@ def _run_pipeline():
 
         grib_file = os.path.join(GRAPHCAST_DIR, "latest.grib2")
         Client(source="ecmwf").retrieve(
-            model="graphcast",
+            model="aifs-single",
             date=run_date,
             time=run_time,
             step=STEPS,
