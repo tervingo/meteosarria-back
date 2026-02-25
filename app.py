@@ -14,6 +14,7 @@ from api_radar_aemet import radar_bp
 from api_historico import historico_bp
 from api_burgos_estadisticas import burgos_stats_bp
 from api_weather_comparison import weather_comparison_bp
+from api_graphcast import graphcast_bp
 
 app = Flask(__name__)
 
@@ -47,6 +48,7 @@ app.register_blueprint(radar_bp)
 app.register_blueprint(historico_bp)
 app.register_blueprint(burgos_stats_bp)
 app.register_blueprint(weather_comparison_bp)
+app.register_blueprint(graphcast_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)

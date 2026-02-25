@@ -14,3 +14,9 @@ requests-oauthlib
 selenium==4.16.0
 undetected-chromedriver==3.5.5
 google-cloud-translate
+# GraphCast / ECMWF pipeline
+ecmwf-opendata
+cfgrib
+xarray
+rioxarray
+rio-tiler
