@@ -69,6 +69,54 @@ VARIABLES_CONFIG = {
 }
 
 # ---------------------------------------------------------------------------
+# Colormaps (numpy interpolation, no matplotlib needed)
+# ---------------------------------------------------------------------------
+
+# Color stops: list of (position_0_to_1, R, G, B)
+_CM_STOPS = {
+    "RdBu_r": [
+        (0.0,    0,   0, 255),
+        (0.25,  70, 130, 180),
+        (0.5,  255, 255, 255),
+        (0.75, 255, 165,   0),
+        (1.0,  220,  50,  47),
+    ],
+    "Blues": [
+        (0.0,  247, 251, 255),
+        (0.5,  107, 174, 214),
+        (1.0,    8,  48, 107),
+    ],
+    "YlOrRd": [
+        (0.0,  255, 255, 178),
+        (0.33, 254, 178,  76),
+        (0.67, 240,  59,  32),
+        (1.0,  128,   0,  38),
+    ],
+}
+
+_LUT_CACHE: dict = {}
+
+
+def _get_lut(cm_name: str):
+    """Returns a (256, 3) uint8 RGB lookup table for the named colormap."""
+    import numpy as np
+    if cm_name in _LUT_CACHE:
+        return _LUT_CACHE[cm_name]
+    stops = _CM_STOPS.get(cm_name, _CM_STOPS["Blues"])
+    ts = np.array([s[0] for s in stops])
+    rs = np.array([s[1] for s in stops], dtype=float)
+    gs = np.array([s[2] for s in stops], dtype=float)
+    bs = np.array([s[3] for s in stops], dtype=float)
+    xs = np.linspace(0.0, 1.0, 256)
+    lut = np.stack([
+        np.interp(xs, ts, rs),
+        np.interp(xs, ts, gs),
+        np.interp(xs, ts, bs),
+    ], axis=1).astype(np.uint8)  # (256, 3)
+    _LUT_CACHE[cm_name] = lut
+    return lut
+
+# ---------------------------------------------------------------------------
 # Estado global (protegido por lock)
 # ---------------------------------------------------------------------------
 
@@ -333,15 +381,32 @@ def serve_tile(z: int, x: int, y: int):
     cm_name = cfg.get("colormap", "viridis")
 
     try:
+        import numpy as np
+        from PIL import Image
+        import io
         from rio_tiler.io import Reader
-        from rio_tiler.colormap import cmap
 
         with Reader(tiff) as src:
             img = src.tile(x, y, z, indexes=1)
 
-        img.rescale(in_range=((vis_min, vis_max),), out_range=(0, 255))
-        colormap = cmap.get(cm_name)
-        content = img.render(img_format="PNG", colormap=colormap)
+        data = img.data[0].astype(np.float64)   # (h, w)
+        mask = img.mask                           # (h, w): 255=valid, 0=nodata
+
+        # Normalize to [0, 255] index
+        span = vis_max - vis_min
+        norm = np.clip((data - vis_min) / span, 0.0, 1.0) if span > 0 else np.zeros_like(data)
+        idx = (norm * 255).astype(np.uint8)
+
+        # Apply colormap LUT → RGBA
+        lut = _get_lut(cm_name)           # (256, 3) uint8
+        rgb = lut[idx]                     # (h, w, 3)
+        alpha = np.where(mask > 0, 204, 0).astype(np.uint8)  # ~80 % opaque
+        rgba = np.dstack([rgb, alpha])     # (h, w, 4)
+
+        # Encode PNG
+        buf = io.BytesIO()
+        Image.fromarray(rgba, "RGBA").save(buf, format="PNG")
+        content = buf.getvalue()
 
         resp = make_response(content, 200)
         resp.headers["Content-Type"] = "image/png"
