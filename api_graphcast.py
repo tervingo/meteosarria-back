@@ -139,7 +139,6 @@ def _open_grib_var(grib_file: str, short_name: str):
         grib_file,
         engine="cfgrib",
         backend_kwargs={"filter_by_keys": {"shortName": short_name}},
-        chunks={},          # lazy loading
     )
 
 
