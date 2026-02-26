@@ -41,7 +41,7 @@ graphcast_bp = Blueprint("graphcast", __name__)
 # ---------------------------------------------------------------------------
 
 GRAPHCAST_DIR = "/tmp/graphcast"
-STEPS = list(range(6, 241, 6))   # 6, 12, …, 240 h
+STEPS = list(range(24, 241, 24))  # 24, 48, 72, …, 240 h (resolución diaria, 10 pasos)
 
 # Parámetros a descargar (GRIB2 shortName)
 GRIB_PARAMS = ["2t", "tp", "10u", "10v"]
@@ -174,7 +174,7 @@ def _run_pipeline():
 
         # ── 1. Descarga GRIB2 ────────────────────────────────────────────
         _update(state="downloading",
-                message=f"Descargando AIFS run {run_date} {run_time}z…")
+                message=f"Descargando AIFS {run_date} {run_time}z… (ECMWF puede tardar 2-5 min)")
         _log(f"Descargando AIFS {run_date} {run_time}z")
 
         from ecmwf.opendata import Client
