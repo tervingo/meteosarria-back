@@ -16,6 +16,7 @@ from api_burgos_estadisticas import burgos_stats_bp
 from api_weather_comparison import weather_comparison_bp
 from api_graphcast import graphcast_bp
 from api_ai_forecast import ai_forecast_bp
+from api_aemet_forecast import aemet_forecast_bp
 
 app = Flask(__name__)
 
@@ -51,6 +52,7 @@ app.register_blueprint(burgos_stats_bp)
 app.register_blueprint(weather_comparison_bp)
 app.register_blueprint(graphcast_bp)
 app.register_blueprint(ai_forecast_bp)
+app.register_blueprint(aemet_forecast_bp)
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
