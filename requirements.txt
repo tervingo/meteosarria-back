@@ -21,3 +21,4 @@ xarray
 rioxarray
 rio-tiler
 Pillow
+anthropic
