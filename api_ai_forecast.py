@@ -161,10 +161,10 @@ def get_ai_forecast(city):
         return jsonify(payload)
     except requests.exceptions.RequestException as e:
         logger.error(f"Error obteniendo datos de Open-Meteo para {city}: {e}")
-        return jsonify({'error': 'No se pudo obtener la previsión'}), 502
+        return jsonify({'error': 'No se pudo obtener la previsión', 'detail': str(e)}), 502
     except Exception as e:
         logger.error(f"Error inesperado en ai-forecast/{city}: {e}")
-        return jsonify({'error': 'Error interno'}), 500
+        return jsonify({'error': 'Error interno', 'detail': str(e)}), 500
 
 
 @ai_forecast_bp.route('/api/ai-forecast/<city>/clear-cache', methods=['POST'])
