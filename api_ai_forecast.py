@@ -89,11 +89,11 @@ def _generate_comment(city_label, rows):
         import anthropic
     except ImportError:
         logger.warning("Paquete 'anthropic' no instalado; se omite el comentario")
-        return None
+        return None, "paquete 'anthropic' no instalado"
 
     if not os.getenv('ANTHROPIC_API_KEY'):
         logger.info("ANTHROPIC_API_KEY no configurada; se omite el comentario")
-        return None
+        return None, "ANTHROPIC_API_KEY no configurada"
 
     try:
         client = anthropic.Anthropic()
@@ -128,10 +128,10 @@ def _generate_comment(city_label, rows):
             messages=[{"role": "user", "content": json.dumps(rows, ensure_ascii=False)}],
         )
         text = next(b.text for b in response.content if b.type == "text")
-        return json.loads(text)["comment"]
+        return json.loads(text)["comment"], None
     except Exception as e:
         logger.error(f"Error generando comentario con Claude: {e}")
-        return None
+        return None, str(e)
 
 
 @ai_forecast_bp.route('/api/ai-forecast/<city>')
@@ -148,7 +148,7 @@ def get_ai_forecast(city):
         info = CITIES[city]
         daily = _fetch_open_meteo(info['lat'], info['lon'])
         rows = _build_rows(daily)
-        comment = _generate_comment(info['label'], rows)
+        comment, comment_error = _generate_comment(info['label'], rows)
 
         payload = {
             'city': city,
@@ -157,6 +157,8 @@ def get_ai_forecast(city):
             'rows': rows,
             'comment': comment,
         }
+        if comment_error:
+            payload['comment_error'] = comment_error
         _set_cached(city, payload)
         return jsonify(payload)
     except requests.exceptions.RequestException as e:
