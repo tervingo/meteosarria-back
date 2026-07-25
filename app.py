@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
 from flask_caching import Cache
 import os
@@ -53,15 +53,6 @@ app.register_blueprint(weather_comparison_bp)
 app.register_blueprint(graphcast_bp)
 app.register_blueprint(ai_forecast_bp)
 app.register_blueprint(aemet_forecast_bp)
-
-
-# Diagnóstico temporal: confirma si el proceso ve cada variable de entorno
-# (solo presencia/ausencia, nunca el valor).
-@app.route('/api/debug/env-check')
-def env_check():
-    keys = ['ANTHROPIC_API_KEY', 'AEMET_API_KEY', 'MONGODB_URI', 'OPENWEATHER_API_KEY', 'TEST_KEY_123']
-    return jsonify({k: bool(os.getenv(k)) for k in keys})
-
 
 if __name__ == '__main__':
     app.run(debug=True, use_reloader=False)
