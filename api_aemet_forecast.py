@@ -116,6 +116,13 @@ def get_aemet_forecast(city):
         return jsonify(payload)
     except requests.exceptions.RequestException as e:
         logger.error(f"Error obteniendo predicción AEMET para {city}: {e}")
+        stale = _cache.get(city)
+        if stale:
+            logger.warning(f"Sirviendo previsión AEMET cacheada (caducada) de {city} por fallo de AEMET")
+            stale_payload = dict(stale['payload'])
+            stale_payload['stale'] = True
+            stale_payload['stale_reason'] = str(e)
+            return jsonify(stale_payload)
         return jsonify({'error': 'No se pudo obtener la previsión de AEMET', 'detail': str(e)}), 502
     except Exception as e:
         logger.error(f"Error inesperado en aemet-forecast/{city}: {e}")

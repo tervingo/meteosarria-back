@@ -163,6 +163,13 @@ def get_ai_forecast(city):
         return jsonify(payload)
     except requests.exceptions.RequestException as e:
         logger.error(f"Error obteniendo datos de Open-Meteo para {city}: {e}")
+        stale = _cache.get(city)
+        if stale:
+            logger.warning(f"Sirviendo previsión cacheada (caducada) de {city} por fallo de Open-Meteo")
+            stale_payload = dict(stale['payload'])
+            stale_payload['stale'] = True
+            stale_payload['stale_reason'] = str(e)
+            return jsonify(stale_payload)
         return jsonify({'error': 'No se pudo obtener la previsión', 'detail': str(e)}), 502
     except Exception as e:
         logger.error(f"Error inesperado en ai-forecast/{city}: {e}")
