@@ -29,7 +29,7 @@ CITIES = {
 }
 
 FORECAST_DAYS = 8
-CACHE_HOURS = float(os.getenv('AI_FORECAST_CACHE_HOURS', 6))
+CACHE_HOURS = float(os.getenv('AI_FORECAST_CACHE_HOURS', 3))
 
 DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
