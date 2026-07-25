@@ -59,7 +59,7 @@ app.register_blueprint(aemet_forecast_bp)
 # (solo presencia/ausencia, nunca el valor).
 @app.route('/api/debug/env-check')
 def env_check():
-    keys = ['ANTHROPIC_API_KEY', 'AEMET_API_KEY', 'MONGODB_URI', 'OPENWEATHER_API_KEY']
+    keys = ['ANTHROPIC_API_KEY', 'AEMET_API_KEY', 'MONGODB_URI', 'OPENWEATHER_API_KEY', 'TEST_KEY_123']
     return jsonify({k: bool(os.getenv(k)) for k in keys})
 
 
