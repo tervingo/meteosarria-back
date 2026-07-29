@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import requests
 import pytz
 from dotenv import load_dotenv
+from forecast_common import day_and_date
 
 load_dotenv()
 
@@ -25,7 +26,6 @@ MUNICIPIOS = {
 }
 
 CACHE_HOURS = float(os.getenv('AEMET_FORECAST_CACHE_HOURS', 6))
-DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
 _cache = {}
 
@@ -72,7 +72,7 @@ def _build_rows(dias):
         fecha_str = dia.get('fecha', '')[:10]
         if not fecha_str:
             continue
-        date_obj = datetime.strptime(fecha_str, '%Y-%m-%d')
+        day, date = day_and_date(fecha_str)
 
         temperatura = dia.get('temperatura', {})
         probs = dia.get('probPrecipitacion', [])
@@ -82,8 +82,8 @@ def _build_rows(dias):
         ]
 
         rows.append({
-            'day': DIAS_SEMANA[date_obj.weekday()],
-            'date': date_obj.strftime('%d/%m'),
+            'day': day,
+            'date': date,
             'tmax': temperatura.get('maxima'),
             'tmin': temperatura.get('minima'),
             'precip_prob': max(prob_values) if prob_values else 0,

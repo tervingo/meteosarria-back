@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import requests
 import pytz
 from dotenv import load_dotenv
+from forecast_common import day_and_date
 
 load_dotenv()
 
@@ -30,8 +31,6 @@ CITIES = {
 
 FORECAST_DAYS = 8
 CACHE_HOURS = float(os.getenv('AI_FORECAST_CACHE_HOURS', 3))
-
-DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
 _cache = {}
 
@@ -70,10 +69,10 @@ def _fetch_open_meteo(lat, lon):
 def _build_rows(daily):
     rows = []
     for i, date_str in enumerate(daily['time']):
-        date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+        day, date = day_and_date(date_str)
         rows.append({
-            'day': DIAS_SEMANA[date_obj.weekday()],
-            'date': date_obj.strftime('%d/%m'),
+            'day': day,
+            'date': date,
             'tmax': round(daily['temperature_2m_max'][i], 1),
             'tmin': round(daily['temperature_2m_min'][i], 1),
             'precip_prob': daily['precipitation_probability_max'][i],
