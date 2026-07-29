@@ -105,7 +105,6 @@ def get_forecast_comparison(city):
 
         daily_om = ai_forecast._fetch_open_meteo(om_info['lat'], om_info['lon'])
         om_rows = ai_forecast._build_rows(daily_om)
-        comment, comment_error = ai_forecast._generate_comment(om_info['label'], om_rows)
 
         aemet_dias = aemet_forecast._fetch_aemet_dias(aemet_info['code'])
         aemet_rows = aemet_forecast._build_rows(aemet_dias)
@@ -139,10 +138,7 @@ def get_forecast_comparison(city):
             'label': om_info['label'],
             'updated_at': datetime.now(pytz.timezone('Europe/Madrid')).isoformat(),
             'rows': rows,
-            'comment': comment,
         }
-        if comment_error:
-            payload['comment_error'] = comment_error
 
         _set_cached(city, payload)
         return jsonify(payload)
